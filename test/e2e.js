@@ -52,6 +52,8 @@ const ok = (name, cond) => { console.log((cond ? '  ✓ ' : '  ✗ ') + name); i
   for (let i = 0; i < 4; i++) { r = await call('POST', '/api/cron', {}, { 'x-cron-secret': 'cron-test' }); }
   await new Promise(r => setTimeout(r, 300));
   ok(`4 Mails verschickt (Warm-up-Limit 6)`, sink.length === 4);
+  r = await call('GET', '/api/live'); ok('Live-Versand: 4 gesendet sichtbar', r.j.ok && r.j.sentToday === 4 && r.j.sent.length === 4 && r.j.sent[0].lead && r.j.sent[0].subject.length > 0);
+  ok('Live-Versand: nächster Versand geplant', Array.isArray(r.j.next) && r.j.next.length > 0);
   const g = sink.find(m => m.includes('office@glanzwerk.at')); ok('fehlender Vorname → „Sehr geehrte Damen und Herren,“', /Sehr geehrte Damen und Herren,\r?\n/.test(g)); ok('Fußzeile + List-Unsubscribe', g.includes('Abmelden') && /List-Unsubscribe/i.test(g));
   // Antwort
   const hub = fake.db.sends.find(s => fake.db.leads.find(l => l.id === s.lead_id).email === 'm.huber@huber-reinigung.at');

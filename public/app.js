@@ -102,6 +102,7 @@ function renderTop(){
 /* ================= Overview ================= */
 const V={};
 V.overview=()=>{
+ setTimeout(()=>loadLive(),0);
  const h=new Date().getHours(),greet=h<11?'Guten Morgen':h<18?'Hallo':'Guten Abend';
  const k=C.kpi,ck=C.checklist,done=ck.filter(Boolean).length,nextIdx=ck.findIndex(x=>!x);
  const items=[['Ziel festlegen','Kapazitäts-Rechner','lesson'],['Konten verbinden',C.accounts.length?C.accounts.length+' verknüpft':'App-Passwort','accounts'],['Domain prüfen','SPF, DKIM, DMARC','accounts'],['Warm-up verstehen','Kurze Lektion','lesson'],['Leads importieren','CSV-Datei','leads'],['Sequenz erstellen','Mail + Follow-ups','camp'],['Testmail senden','An dich selbst','testmail'],['Kampagne starten','Mit Sicherheitscheck','start']];
@@ -131,12 +132,39 @@ V.overview=()=>{
    ${C.accounts.some(a=>a.warmup&&a.day<28)?`<div class="callout" style="margin-top:14px">${ic('info')}<div>${C.accounts.filter(a=>a.warmup&&a.day<28).length} Konto/Konten noch im Warm-up. Danach schaffst du ca. <b>${okAccounts().reduce((s,a)=>s+a.maxPerDay,0)} Mails</b> pro Tag.</div></div>`:''}`
   :`<div class="empty">${ics('mail',26)}<p style="margin:10px 0 14px">Noch kein E-Mail-Konto verbunden.</p><button class="btn primary sm" data-act="connect">${ic('plus',2)}Konto verbinden</button></div>`}
   </div></div></div>
+ <div class="card mt" id="liveCard" data-tour="live">${LIVE?liveInner():`<div class="card-h"><h3>Live-Versand</h3></div><div class="card-b"><div class="empty">${spinner}</div></div>`}</div>
  <div class="grid g2 mt">
   <div class="card"><div class="card-h"><h3>Braucht deine Aufmerksamkeit</h3>${uniq.length?`<span class="badge b-warn">${uniq.length}</span>`:''}</div><div class="card-b">${uniq.length?uniq.slice(0,6).map(a=>alertRow(...a)).join(''):`<div class="alert"><div class="ic" style="background:rgba(52,211,153,.12);color:var(--good)">${ic('check')}</div><div><strong>Alles läuft rund</strong><span>Keine Fehler bei Konten oder Kampagnen.</span></div></div>`}</div></div>
   <div class="card"><div class="card-h"><h3>Aktive Kampagnen</h3><button class="btn sm ghost" data-act="go" data-view="campaigns">Alle</button></div><div class="card-b" style="padding-top:8px">
   ${active.length?active.map(c=>{const s=c.stats;return `<div class="alert" style="cursor:pointer" data-act="openCamp" data-id="${c.id}"><div class="ic" style="background:var(--vsoft);color:var(--violet2)">${ic('send')}</div><div style="flex:1;min-width:0"><strong>${esc(c.name)}</strong><span>${s.contacted} von ${s.total} kontaktiert · ${s.replies} Antworten · ${s.positive} positiv</span><div class="prog" style="margin-top:8px"><i style="width:${s.total?s.contacted/s.total*100:0}%"></i></div></div><span class="badge b-good" style="margin-left:12px">${num(s.contacted?s.replies/s.contacted*100:0)} %</span></div>`}).join(''):`<div class="empty" style="padding:24px">Keine aktive Kampagne.<div style="margin-top:12px"><button class="btn sm" data-act="newCampaign">${ic('plus',2)}Kampagne erstellen</button></div></div>`}
   </div></div></div></div>`;
 };
+/* ---------- Live-Versand ---------- */
+let LIVE=null,liveAt=0,liveBusy=false;
+const lvHm=d=>new Date(d).toLocaleTimeString('de-AT',{hour:'2-digit',minute:'2-digit'});
+const lvDay=d=>{const x=new Date(d),t=new Date(),y=new Date(t);y.setDate(t.getDate()-1);const m=new Date(t);m.setDate(t.getDate()+1);return x.toDateString()===t.toDateString()?'heute':x.toDateString()===y.toDateString()?'gestern':x.toDateString()===m.toDateString()?'morgen':x.toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit'})};
+function lvWhen(iso){if(!iso)return'–';const ms=new Date(iso)-Date.now();if(ms<=45e3)return'jetzt';if(ms<3600e3){const m=Math.floor(ms/6e4),sec=Math.floor(ms%6e4/1e3);return`in ${m}:${String(sec).padStart(2,'0')}`}if(ms<12*3600e3){const h=Math.floor(ms/3600e3),m=Math.round(ms%3600e3/6e4);return`in ${h} h ${m} min`}return lvDay(iso)}
+const LV_WHY={now:'Geht mit dem nächsten Durchlauf raus',gap:'Kurze Pause zwischen zwei Mails – wirkt menschlich',window:'Außerhalb der Versandzeit – wartet auf das nächste Zeitfenster',followup:'Follow-up wird fällig',newlimit:'Max. neue Leads für heute erreicht – geht morgen weiter',off:'Konto getrennt oder pausiert',idle:'Nichts mehr offen für dieses Konto'};
+const lvLead=l=>l?(l.company||l.name||l.email):'';
+function liveInner(prevTop){
+ const L=LIVE;const fresh=new Set();if(prevTop){for(const x of L.sent){if(x.id===prevTop)break;fresh.add(x.id)}}
+ const st={replied:['Geantwortet','b-good'],bounced:['Unzustellbar','b-bad'],unsub:['Abgemeldet','b-mute'],stopped:['Gestoppt','b-mute'],error:['Fehler','b-bad']};
+ const sentHtml=L.sent.length?L.sent.map(x=>{const b=x.test?['Testmail','b-info']:st[x.status];return `<div class="lv-row ${fresh.has(x.id)?'flash':''}" ${x.lead?`data-act="openLead" data-id="${x.lead.id}"`:''}><div class="lv-time">${lvHm(x.at)}<span>${lvDay(x.at)}</span></div><div class="lv-dot ${x.status||''}"></div><div class="lv-main"><div class="lv-t">${esc(lvLead(x.lead)||'Testmail')}${b?` <span class="badge ${b[1]}" style="margin-left:6px">${b[0]}</span>`:''}</div><div class="lv-s">${esc(x.account)} → ${x.lead?esc(x.lead.email):'an dich selbst'}</div>${x.lead?`<div class="lv-sub">${x.step?esc(x.step)+' · ':''}${esc(x.subject||'')}</div>`:''}</div></div>`}).join(''):`<div class="empty" style="padding:30px 10px">${ics('send',22)}<p style="margin-top:8px">Noch nichts verschickt.</p></div>`;
+ const nextHtml=L.next.length?L.next.map(n=>{const why=n.why==='limit'?`Tageslimit erreicht (${n.sent}/${n.limit}) – geht morgen weiter`:LV_WHY[n.why]||'';return `<div class="lv-next ${n.why}" ${n.lead?`data-act="openLead" data-id="${n.lead.id}"`:''}><div class="lv-cd"><b data-cd="${n.at||''}">${n.at?lvWhen(n.at):'–'}</b><span>${n.at?lvDay(n.at)+' · '+lvHm(n.at):''}</span></div><div class="lv-main"><div class="lv-t">${n.lead?esc(lvLead(n.lead)):n.why==='idle'||n.why==='off'?esc(n.account):'Nächster neuer Lead'}</div><div class="lv-s">${n.lead||n.campaign?esc(n.account)+(n.step?' · '+n.step:''):''}${n.campaign?' · '+esc(n.campaign.name):''}</div><div class="lv-why">${why}</div></div></div>`}).join(''):`<div class="empty" style="padding:24px 10px"><p>Keine Kampagne aktiv – es ist nichts geplant.</p></div>`;
+ const f=L.followups;
+ const foot=[...L.active.map(c=>`<div class="row gap-s">${ics('send',13)}<span><b style="color:var(--text)">${esc(c.name)}</b> · ${c.pending} neue Leads warten · ${esc(c.schedule)}</span></div>`),
+  f.count?`<div class="row gap-s">${ics('clock',13)}<span>${f.count} Follow-up${f.count>1?'s':''} geplant · das nächste ${lvDay(f.next)} ${lvHm(f.next)}</span></div>`:'',
+  ...L.paused.map(c=>`<div class="row gap-s" style="justify-content:space-between"><span class="row gap-s">${ics('pause',13)}<span>„${esc(c.name)}“ ist pausiert${c.pending?' · '+c.pending+' Leads warten':''}</span></span><button class="btn sm ghost" data-act="openCamp" data-id="${c.id}">Öffnen</button></div>`)].filter(Boolean).join('');
+ return `<div class="card-h"><h3>Live-Versand</h3><div class="row gap"><span class="live-pill ${L.active.length?'on':''}"><i></i>${L.active.length?'Live · aktualisiert '+lvHm(L.now):'Kein Versand aktiv'}</span></div></div>
+ <div class="card-b"><div class="lv-cols"><div><div class="lv-h"><span>Gerade verschickt</span><span>heute ${L.sentToday}</span></div><div class="lv-list">${sentHtml}</div></div>
+ <div><div class="lv-h"><span>Als Nächstes geplant</span><span>${L.next.filter(n=>n.at).length} Konten</span></div>${nextHtml}${foot?`<div class="lv-foot">${foot}</div>`:''}</div></div></div>`;
+}
+async function loadLive(force){
+ if(liveBusy||(!force&&Date.now()-liveAt<8000)||S.view!=='overview')return;liveBusy=true;
+ try{const j=await get('/api/live');if(j&&j.ok){const prevTop=LIVE&&LIVE.sent[0]?LIVE.sent[0].id:null;const changed=LIVE&&j.sentToday!==LIVE.sentToday;LIVE=j;liveAt=Date.now();const el=$('#liveCard');if(el)el.innerHTML=liveInner(prevTop);
+  if(changed&&C&&j.sentToday!==C.kpi.sentToday&&!modalOpen()&&!document.activeElement?.matches('input,textarea,select'))refresh(true)}}catch(e){}finally{liveBusy=false}
+}
+setInterval(()=>{if(document.hidden||S.view!=='overview'||!$('#liveCard'))return;document.querySelectorAll('#liveCard [data-cd]').forEach(el=>{if(el.dataset.cd)el.textContent=lvWhen(el.dataset.cd)});if(Date.now()-liveAt>15000)loadLive()},1000);
 function kpi(l,v,d,cls,series,hero){const show=series.filter(x=>x>0).length>=3;series=series.length?series:[0,0];const max=Math.max(...series,1),min=Math.min(...series);const pts=series.map((y,i)=>`${(i/(series.length-1)*80).toFixed(1)},${(28-(y-min)/((max-min)||1)*24).toFixed(1)}`).join(' ');
  return `<div class="card kpi ${hero?'hero':''}"><div class="lbl">${l}</div><div class="val">${v}</div><div class="delta ${cls}">${d}</div>${show?'':'<!--'}<svg class="spark" viewBox="0 0 80 30"><polyline points="${pts}" fill="none" stroke="${hero?'var(--peach)':'var(--violet2)'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/></svg>${show?'':'-->'}</div>`}
 function alertRow(k,i,t,s,b,v){const col=k==='bad'?'var(--bad)':'var(--warn)';const act=v.startsWith('camp:')?`data-act="openCamp" data-id="${v.slice(5)}"`:`data-act="go" data-view="${v}"`;return `<div class="alert"><div class="ic" style="background:${k==='bad'?'rgba(248,113,113,.12)':'rgba(251,191,36,.12)'};color:${col}">${ic(i)}</div><div style="min-width:0"><strong>${esc(t)}</strong><span>${esc(s)}</span></div><button class="btn sm" ${act}>${b}</button></div>`}
