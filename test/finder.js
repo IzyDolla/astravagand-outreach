@@ -93,7 +93,14 @@ const ok = (n, c, extra) => { console.log((c ? '  ✓ ' : '  ✗ ') + n + (c || 
   const listId = r.j.listId;
   r = await call('POST', '/api/finder/import', { filter: { job: job.id, has: 'email' }, listId });
   ok('„Alle übernehmen“ mit Filter, Duplikat erkannt', r.j.ok && r.j.imported === 1 && r.j.duplicates === 1, r.j);
-  r = await call('GET', `/api/finder/results?job=${job.id}&imported=no`); ok('Filter „noch nicht übernommen“', r.j.rows.every(x => !x.imported) && r.j.total === 4);
+  fake.db.accounts.push({ id: '00000000-0000-4000-8000-0000000000a1', ws_id: fake.db.workspaces[0].id, email: 'vertrieb@astravagand.com', name: 'Izy Sinani', status: 'ok', auth_type: 'gworkspace' });
+  r = await call('POST', '/api/finder/import', { ids: [Bf.id], listId: 'new', listName: 'Reinigung Linz – Test', campaign: true });
+  const camp = fake.db.campaigns.find(c => c.id === (r.j.campaign || {}).id);
+  ok('Kampagne mit Branchen-Vorlage angelegt', camp && camp.steps.length === 3 && /Angebotsanfragen/.test(camp.steps[0].subject) && camp.lists[0] === r.j.listId && camp.accounts.includes('00000000-0000-4000-8000-0000000000a1') && camp.status === 'draft', r.j);
+  const C2 = require('../lib/core');
+  ok('ohne Ansprechpartner → Sehr geehrte Damen und Herren', C2.render(camp.steps[0].body, { first: '', company: 'X' }, { name: 'Izy' }).startsWith('Sehr geehrte Damen und Herren,') && C2.render(camp.steps[0].body, { first: 'Anna', last: 'Berger', company: 'X' }, {}).startsWith('Guten Tag Anna Berger,'));
+  r = await call('POST', '/api/templates/industry'); ok('Branchen-Vorlagen nachträglich anlegbar, keine Doppelten', r.j.ok && fake.db.templates.filter(t => /Handwerk – 3 Schritte/.test(t.name)).length === 1, r.j);
+  r = await call('GET', `/api/finder/results?job=${job.id}&imported=no`); ok('Filter „noch nicht übernommen“', r.j.rows.every(x => !x.imported) && r.j.total === 4, r.j.total);
   r = await call('POST', '/api/finder/results/recrawl', { ids: [Bf.id] }); ok('neu prüfen', fake.db.finder_results.find(x => x.id === Bf.id).crawl_status === 'pending');
   // anderer Workspace sieht nichts
   const other = fake.db.workspaces.length; fake.db.workspaces.push({ id: '00000000-0000-4000-8000-000000000099', name: 'X', settings: {} });

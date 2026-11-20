@@ -21,7 +21,7 @@ const ok = (name, cond) => { console.log((cond ? '  ✓ ' : '  ✗ ') + name); i
   r = await call('POST', '/api/setup', { token: 'SETUP-123', company: 'Astravagand', name: 'Izy Sinani', email: 'izy@astravagand.com', password: 'Mein Kaffee um 7 ist heilig!' }); ok('Setup ok', r.j.ok);
   r = await call('POST', '/api/setup', { token: 'SETUP-123', email: 'x@y.at', password: 'Ein ganz anderes Passwort!' }); ok('zweites Setup blockiert', r.status === 409);
   const owner = [...fake.users.values()][0]; TOKEN = fakeToken(owner.id);
-  r = await call('GET', '/api/state'); ok('state mit Login', r.j.ok && r.j.workspace.name === 'Astravagand' && r.j.templates.length === 3);
+  r = await call('GET', '/api/state'); ok('state mit Login', r.j.ok && r.j.workspace.name === 'Astravagand' && r.j.templates.length === 16);
   r = await call('POST', '/api/workspaces', { name: 'x' }, { 'X-AO': '' }); ok('ohne X-AO → 403', r.status === 403);
   // fremder Benutzer ohne Workspace
   fake.db.allowed_signups.push({ email: 'fremd@x.at' }); const f = (await fake.auth.admin.createUser({ email: 'fremd@x.at', password: 'x' })).data.user;
@@ -50,7 +50,7 @@ const ok = (name, cond) => { console.log((cond ? '  ✓ ' : '  ✗ ') + name); i
   for (let i = 0; i < 4; i++) { r = await call('POST', '/api/cron', {}, { 'x-cron-secret': 'cron-test' }); }
   await new Promise(r => setTimeout(r, 300));
   ok(`4 Mails verschickt (Warm-up-Limit 6)`, sink.length === 4);
-  const g = sink.find(m => m.includes('office@glanzwerk.at')); ok('fehlender Vorname → „Hallo,“', /Hallo,\r?\n/.test(g)); ok('Fußzeile + List-Unsubscribe', g.includes('Abmelden') && /List-Unsubscribe/i.test(g));
+  const g = sink.find(m => m.includes('office@glanzwerk.at')); ok('fehlender Vorname → „Sehr geehrte Damen und Herren,“', /Sehr geehrte Damen und Herren,\r?\n/.test(g)); ok('Fußzeile + List-Unsubscribe', g.includes('Abmelden') && /List-Unsubscribe/i.test(g));
   // Antwort
   const hub = fake.db.sends.find(s => fake.db.leads.find(l => l.id === s.lead_id).email === 'm.huber@huber-reinigung.at');
   const A = fake.db.accounts[0];

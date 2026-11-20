@@ -52,7 +52,8 @@ const fullName=l=>[l.first,l.last].filter(Boolean).join(' ');
 function toast(msg,kind='good'){const t=document.createElement('div');t.className='toast';t.innerHTML=`<span class="dot ${kind}"></span><span>${msg}</span>`;$('#toasts').appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s'},3200);setTimeout(()=>t.remove(),3600)}
 const warmLimit=d=>d<=7?Math.round(5+d*0.7):d<=14?Math.round(10+(d-7)*1.4):d<=21?Math.round(20+(d-14)*1.4):40;
 const SPAM=['kostenlos','gratis','garantiert','100%','100 %','jetzt kaufen','gewinn','dringend','!!!','risikofrei','billig','sofort zugreifen'];
-const VARS=['Vorname','Nachname','Firma','Stadt','Branche','Absender'];
+const VARS=['Anrede','Vorname','Nachname','Firma','Stadt','Branche','Absender'];
+const GREET_RE=/^[ \t]*(?:Hallo|Hi|Hey|Servus|Guten Tag|Guten Morgen|Grüß Gott|Grüezi|Liebe[rs]?|Sehr geehrte[rs]?(?:\s+(?:Herr|Frau))?)\s+\{Vorname\}(?:\s+\{Nachname\})?[ \t]*[,!]?/gim;
 const debounce=(fn,ms)=>{let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms)}};
 const spinner='<span class="spin" style="border-color:var(--border2);border-top-color:var(--violet2)"></span>';
 
@@ -175,8 +176,8 @@ function campDetail(){
 async function loadPrevLeads(c){const j=await get(`/api/campaigns/${c.id}/leads`);if(j.ok){S.prevLeads=j.rows.map(r=>r.lead).slice(0,50);S.campRows=j;if(S.view==='campaigns'&&S.camp===c.id){if(S.campTab==='leads')render();else refreshPreview(true)}}}
 const curLead=()=>S.prevLeads[S.prevIdx]||SAMPLE;
 const sender=()=>{const c=camp();const a=c&&accById(c.accounts[0]);return a||{name:C.accounts[0]?.name||'Dein Name',email:C.accounts[0]?.email||'du@firma.com'}};
-function renderVars(t,lead,html=true){const map={Vorname:lead.first,Nachname:lead.last,Firma:lead.company,Stadt:lead.city,Branche:lead.industry,Absender:sender().name};
- let s=String(t||'');
+function renderVars(t,lead,html=true){const f=String(lead.first||'').trim();const map={Anrede:f?'Guten Tag '+[f,String(lead.last||'').trim()].filter(Boolean).join(' '):'Sehr geehrte Damen und Herren',Vorname:lead.first,Nachname:lead.last,Firma:lead.company,Stadt:lead.city,Branche:lead.industry,Absender:sender().name};
+ let s=String(t||'');if(!f)s=s.replace(GREET_RE,'Sehr geehrte Damen und Herren,');if(!String(lead.last||'').trim())s=s.replace(/^[ \t]*Sehr geehrte[rs]?\s+(?:Herr|Frau)\s+\{Nachname\}[ \t]*,?/gim,'Sehr geehrte Damen und Herren,');
  if(!html)return s.replace(/ \{(\w+)\}(?=[,.!?:;]|\s|$)/g,(m,k)=>map[k]?' '+map[k]:'').replace(/\{(\w+)\}/g,(m,k)=>map[k]||'');
  return esc(s).replace(/\{(\w+)\}/g,(m,k)=>map[k]?`<mark>${esc(map[k])}</mark>`:`<mark class="miss">{${k} leer}</mark>`)}
 function seqEditor(c){
@@ -433,6 +434,7 @@ function importModal(ids,all){
  modal(`${mh('In Leadliste übernehmen',`${fmt(n)} Firma${n===1?'':'en'} ausgewählt${withMail!=null?` · ${fmt(withMail)} mit E-Mail`:''}`)}<div class="modal-b">
   <div class="field"><label>Leadliste</label><select class="select" id="fiList"><option value="new">+ Neue Liste</option>${C.lists.map(l=>`<option value="${l.id}">${esc(l.name)} (${l.count})</option>`).join('')}</select></div>
   <div class="field" id="fiNameF"><label>Name der neuen Liste</label><input class="input" id="fiName" value="${esc(job?job.label:'Lead-Finder '+new Date().toLocaleDateString('de-AT'))}"></div>
+  <label class="row gap" style="margin:4px 0 14px;cursor:pointer;align-items:flex-start"><input type="checkbox" class="cb" id="fiCamp" checked style="margin-top:2px"><span><b>Direkt startklare Kampagne anlegen</b><span class="muted" style="display:block;font-size:12.5px;margin-top:2px">Mit der passenden Branchen-Vorlage (3 Schritte), allen aktiven Postfächern und Versand Mo–Fr 8–16:30 Uhr. Du musst danach nur noch auf Start drücken.</span></span></label>
   <p class="muted" style="font-size:12.5px">Übernommen werden Firmen mit E-Mail-Adresse. Firma, Ort, Branche, Telefon, Website und – falls gefunden – Vor- und Nachname des Ansprechpartners kommen mit, damit {Vorname} und {Firma} in deinen Mails funktionieren. Doppelte und gesperrte Adressen werden übersprungen.</p><div id="fiRes"></div></div>
   <div class="modal-f"><button class="btn ghost" data-act="closeModal">Abbrechen</button><button class="btn primary" id="fiGo" data-act="fImportGo" data-all="${all?1:''}">${ic('plus',2)}Übernehmen</button></div>`);
  FS.pendingIds=ids;
@@ -912,14 +914,15 @@ Object.assign(A,{
  fClear:()=>{FS.sel.clear();drawResults()},
  fImport:d=>{if(d.one){closePanel();return importModal([d.one],false)}if(d.all)return importModal([],true);importModal([...FS.sel],false)},
  fImportGo:async(d)=>{const b=$('#fiGo');b.disabled=true;b.innerHTML=spinner+'Übernehme …';
-  const body={listId:$('#fiList').value,listName:$('#fiName').value};if(d.all){const f=Object.fromEntries(fQs());body.filter=f}else body.ids=FS.pendingIds;
+  const body={listId:$('#fiList').value,listName:$('#fiName').value,campaign:$('#fiCamp').checked};if(d.all){const f=Object.fromEntries(fQs());body.filter=f}else body.ids=FS.pendingIds;
   const j=await post('/api/finder/import',body);b.disabled=false;b.innerHTML=ic('plus',2)+'Übernehmen';
   if(!j.ok){$('#fiRes').innerHTML=resBox('err',esc(j.error));return}
   closeModal();await refresh(false);FS.sel.clear();await loadResults(true);
   const extra=[j.duplicates&&`${j.duplicates} schon in der Liste`,j.blocked&&`${j.blocked} gesperrt`,j.invalid&&`${j.invalid} ungültig`,j.noEmail&&`${j.noEmail} ohne E-Mail`].filter(Boolean).join(', ');
-  modal(`${mh('Übernommen',`${fmt(j.imported)} Lead${j.imported===1?'':'s'} in der Leadliste`)}<div class="modal-b">${resBox('ok',`<b>${fmt(j.imported)} neue Leads</b>${extra?' · übersprungen: '+esc(extra):''}`)}<p class="muted mt" style="font-size:12.5px">Du kannst die Liste jetzt in einer Kampagne auswählen.</p></div><div class="modal-f"><button class="btn ghost" data-act="closeModal">Weiter suchen</button><button class="btn primary" data-act="fGoList" data-id="${j.listId}" data-close="1">${ic('users')}Zur Leadliste</button></div>`);
+  modal(`${mh('Übernommen',`${fmt(j.imported)} Lead${j.imported===1?'':'s'} in der Leadliste`)}<div class="modal-b">${resBox('ok',`<b>${fmt(j.imported)} neue Leads</b>${extra?' · übersprungen: '+esc(extra):''}`)}${j.campaign?`<div class="callout mt">${ic('send')}<div>Kampagne angelegt mit der Vorlage <b>${esc(j.campaign.template)}</b>. Schau kurz über die Texte und drück auf <b>Start</b>.</div></div>`:'<p class="muted mt" style="font-size:12.5px">Du kannst die Liste jetzt in einer Kampagne auswählen.</p>'}</div><div class="modal-f"><button class="btn ghost" data-act="closeModal">Weiter suchen</button>${j.campaign?`<button class="btn" data-act="fGoList" data-id="${j.listId}">${ic('users')}Leadliste</button><button class="btn primary" data-act="fGoCamp" data-id="${j.campaign.id}">${ic('send')}Zur Kampagne</button>`:`<button class="btn primary" data-act="fGoList" data-id="${j.listId}" data-close="1">${ic('users')}Zur Leadliste</button>`}</div>`);
  },
  fGoList:d=>{closeModal();closePanel();S.leadList=d.id||'all';go('leads')},
+ fGoCamp:async d=>{closeModal();closePanel();await refresh(false);A.openCamp({id:d.id})},
  fRecrawl:async d=>{const ids=d.one?[d.one]:[...FS.sel];const j=await post('/api/finder/results/recrawl',{ids});if(!j.ok)return toast(esc(j.error),'bad');toast(`${ids.length} Website${ids.length===1?'':'s'} werden neu geprüft`);closePanel();FS.sel.clear();loadFinder()},
  fDelSel:d=>{const ids=d.one?[d.one]:[...FS.sel];confirmModal(`${ids.length} Firma${ids.length===1?'':'en'} löschen?`,'Die Einträge verschwinden aus dem Lead-Finder. Bereits übernommene Leads bleiben in deinen Leadlisten.','Löschen',async()=>{await post('/api/finder/results/delete',{ids});closePanel();FS.sel.clear();toast('Gelöscht');loadFinder()})}
 });
