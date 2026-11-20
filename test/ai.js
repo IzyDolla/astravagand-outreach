@@ -63,5 +63,8 @@ C.setClient && null;
   t('Mit Signatur: HTML + Text', m2.html.includes('<b>Isah Sinani</b><br>kontakt@astravagand.com') && m2.html.includes('Hallo &lt;Welt&gt;<br><a href="https://astravagand.com">') && m2.text.includes('Isah Sinani\nkontakt@astravagand.com'));
   const m3 = C.compose({ name: 'F', email: 'f@a.com', signature: '<i>Eigene</i>' }, { ...st, signature: { html: '<b>Allgemein</b>' } }, 'x', { footer: false });
   t('Konto-Signatur hat Vorrang, Antwort ohne Fußzeile', m3.html.includes('<i>Eigene</i>') && !m3.html.includes('Allgemein') && !m3.text.includes('Abmelden'));
+  global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: answer('Ihre Werkstatt in der Hollabererstraße 5 hat getrennte Öffnungszeiten für Werkstatt und Kundendienst.') } }], usage: {} }) });
+  const ib3 = await AI3.analyze(null, st, { company: 'X', website: 'https://x.at' });
+  t('Einstieg mit Adresse/Öffnungszeiten wird abgelehnt', ib3.text === '');
   console.log(`ai: ${ok} ok, ${bad} fehlgeschlagen`); process.exit(bad ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
