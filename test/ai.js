@@ -31,15 +31,22 @@ C.setClient && null;
   t('Guthaben leer → klare Meldung', /Guthaben/.test(e1));
   delete process.env.OPENAI_KEY; let e2 = ''; try { await AI2.rewrite(null, st, { body: 'x' }); } catch (e) { e2 = e.message; }
   t('Ohne Key → klare Meldung', /OPENAI_KEY fehlt/.test(e2)); process.env.OPENAI_KEY = 'sk-test';
-  // Einstieg: Fragment → zweiter Versuch
-  const F = require('../lib/finder'); F.safeFetch = async () => ({ text: '<title>Autohaus Test</title><p>' + 'Wir sind Ihr Partner für Oldtimer-Restaurierung und Subaru-Service in Linz seit 1987. '.repeat(4) + '</p>' });
-  delete require.cache[require.resolve('../lib/ai')]; const AI3 = require('../lib/ai'); mode = 'ok';
-  let n = 0; global.fetch = async (url, opts) => { n++; const content = JSON.stringify({ text: n === 1 ? 'auf Ihrer Filiale in Linz mit Reifen' : 'Seit 1987 restaurieren Sie in Linz Oldtimer und betreuen zusätzlich Subaru-Fahrzeuge im Service.' }); return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content } }], usage: {} }) }; };
-  const ib = await AI3.icebreaker(null, st, { company: 'Autohaus Test', website: 'https://autohaus-test.at' });
-  t('Einstieg: Fragment wird verworfen, zweiter Versuch genommen', n === 2 && ib.text.startsWith('Seit 1987'));
-  n = 0; global.fetch = async () => { n++; return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: JSON.stringify({ text: 'kein satz' }) } }], usage: {} }) }; };
-  const ib2 = await AI3.icebreaker(null, st, { company: 'X', website: 'https://x.at' });
-  t('Einstieg: zweimal Fragment → leer', n === 2 && ib2.text === '');
+  // KI-Firmencheck: Impressum, Personen, Signale, Einstieg
+  const F = require('../lib/finder');
+  const HOME = '<html><head><title>Autohaus Test</title></head><body><p>' + 'Wir sind Ihr Partner für Oldtimer-Restaurierung und Subaru-Service in Linz seit 1987. '.repeat(4) + '</p><a href="/impressum">Impressum</a><p>© 2019 Autohaus Test</p></body></html>';
+  const IMP = '<html><body><h1>Impressum</h1><p>Geschäftsführer: Karl Huber</p><p>Vorsitzender des Aufsichtsrats: Franz Maier</p></body></html>';
+  F.safeFetch = async u => ({ url: String(u), text: /impressum/.test(String(u)) ? IMP : HOME }); F.robotsAllows = async () => true;
+  delete require.cache[require.resolve('../lib/ai')]; const AI3 = require('../lib/ai');
+  let n = 0; const answer = e => JSON.stringify({ personen: [{ anrede: 'Herr', vorname: 'Karl', nachname: 'Huber', rolle: 'Geschäftsführer' }, { anrede: 'Herr', vorname: 'Franz', nachname: 'Maier', rolle: 'Aufsichtsratsvorsitzender' }, { anrede: 'Frau', vorname: 'Erfunden', nachname: 'Nirgends', rolle: 'Geschäftsführerin' }], ziel: 0, kurzprofil: 'Werkstatt in Linz.', fakten: ['seit 1987'], ansatzpunkte: [{ titel: 'Online-Termine', warum: 'Spart Telefonate.' }], einstieg: e });
+  global.fetch = async () => { n++; return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: answer(n === 1 ? 'auf Ihrer Filiale in Linz mit Reifen' : 'Seit 1987 restaurieren Sie in Linz Oldtimer und betreuen zusätzlich Subaru-Fahrzeuge im Service.') } }], usage: {} }) }; };
+  const ib = await AI3.analyze(null, st, { company: 'Autohaus Test', website: 'https://autohaus-test.at' });
+  t('Firmencheck: Fragment verworfen, zweiter Versuch', n === 2 && ib.text.startsWith('Seit 1987'));
+  t('Firmencheck: Geschäftsführer erkannt, Aufsichtsrat + erfundene Namen raus', ib.insights.people.length === 1 && ib.insights.people[0].last === 'Huber' && ib.insights.target === 0);
+  t('Firmencheck: Signale (altes Copyright, kein Handy, kein Chat)', ['alt', 'mobil', 'chat'].every(k => ib.insights.signals.some(x => x.k === k)) && ib.insights.pages.length === 2);
+  t('Firmencheck: Ansatzpunkte + Profil', ib.insights.angles[0].title === 'Online-Termine' && ib.insights.profile === 'Werkstatt in Linz.');
+  n = 5; global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: answer('kein satz') } }], usage: {} }) });
+  const ib2 = await AI3.analyze(null, st, { company: 'X', website: 'https://x.at' });
+  t('Firmencheck: Fragment zweimal → Einstieg leer, Infos bleiben', ib2.text === '' && ib2.insights.people.length === 1);
   // {Einstieg}
   const body = '{Anrede},\n\n{Einstieg}\n\nWir bauen Websites.';
   t('Einstieg leer → Zeile entfällt', C.render(body, { first: '', company: 'X' }, {}) === 'Sehr geehrte Damen und Herren,\n\nWir bauen Websites.');

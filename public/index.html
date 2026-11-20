@@ -253,6 +253,11 @@ a{color:var(--violet2);text-decoration:none}
 @media(max-width:700px){.today-metrics{grid-template-columns:repeat(2,1fr)}.tm{border-left:none!important;border-top:1px solid var(--border)}.today-num b{font-size:52px}}
 .ch{width:100%;height:auto;display:block;overflow:visible}.ch path,.ch text,.ch line{pointer-events:none}.ch .hit{fill:transparent}.ch .hit:hover{fill:var(--hover)}
 #tip{position:fixed;z-index:400;pointer-events:none;background:var(--text);color:var(--bg);font-size:12px;padding:7px 10px;border-radius:9px;max-width:300px;line-height:1.45;opacity:0;transition:opacity .08s;box-shadow:var(--shadow-lg);left:0;top:0}#tip.on{opacity:1}#tip b{font-weight:650}
+.fc-row{display:grid;grid-template-columns:110px minmax(0,1fr);gap:10px;padding:8px 0;border-top:1px solid var(--border);font-size:13px;line-height:1.45}
+.fc-row>span{color:var(--muted);font-size:12.5px;display:flex;align-items:flex-start;gap:4px}
+.fc-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.fc-row>.fc-chips{margin-top:0}
+.fc-angle{margin-bottom:7px}.fc-angle:last-child{margin-bottom:0}.fc-angle .muted{font-size:12.5px}
+.linkbtn{background:none;border:none;color:var(--muted);cursor:pointer;padding:0 2px;display:inline-flex}.linkbtn:hover{color:var(--text)}
 .live-pill{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;padding:5px 11px;border-radius:999px;background:var(--surface2);border:1px solid var(--border);color:var(--muted)}
 .live-pill i{width:7px;height:7px;border-radius:50%;background:var(--muted)}
 .live-pill.on{color:var(--text)}.live-pill.on i{background:var(--good);animation:lvpulse 1.6s infinite}
