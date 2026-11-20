@@ -85,7 +85,7 @@ function renderSide(){
  $('#side').innerHTML=`<div class="brand">${logo(32)}<div><b>Astravagand</b><small>Outreach</small></div></div>
  <div class="ws" data-act="wsMenu"><div class="av">${esc((C.workspace.name||'A')[0].toUpperCase())}</div><div><strong>${esc(C.workspace.name)}</strong><span>${C.workspaces.length>1?C.workspaces.length+' Workspaces':'Workspace'}</span></div><span class="faint">⌄</span></div>
  <div class="nav-label">Menü</div>
- ${NAV.map(([v,i,l])=>`<button class="nav ${S.view===v?'active':''}" data-act="go" data-view="${v}" data-tour="nav-${v}">${ic(i)}${l}${v==='inbox'&&C.inboxUnread?`<span class="count">${C.inboxUnread}</span>`:''}${v==='finder'?'<span class="soon">V2</span>':''}${v==='accounts'&&bad?'<span class="dot bad" style="margin-left:auto"></span>':''}</button>`).join('')}
+ ${NAV.map(([v,i,l])=>`<button class="nav ${S.view===v?'active':''}" data-act="go" data-view="${v}" data-tour="nav-${v}">${ic(i)}${l}${v==='inbox'&&C.inboxUnread?`<span class="count">${C.inboxUnread}</span>`:''}${v==='accounts'&&bad?'<span class="dot bad" style="margin-left:auto"></span>':''}</button>`).join('')}
  <div class="side-foot"><div class="helpcard" data-tour="help"><strong>Neu hier?</strong><p>Die Tour zeigt dir in 2 Minuten alles Wichtige.</p><button class="btn sm" data-act="tour">${ic('play')}Tour starten</button></div>
  <button class="nav" data-act="lesson">${ic('flame')}Warum Warm-up?</button><button class="nav" data-act="help">${ic('book')}Hilfe-Center</button></div>`;
 }
@@ -326,10 +326,118 @@ function calc(){const el=$('#calcIn');if(!el)return;const v=+el.value||0;store.s
 V.templates=()=>`<div class="wrap"><div class="page-head"><div><h1>Vorlagen</h1><p>Einzelne Texte und komplette Sequenzen zum Wiederverwenden.</p></div><button class="btn primary" data-act="newTpl">${ic('plus',2.2)}Neue Vorlage</button></div>
  <div class="grid g3">${C.templates.map(t=>`<div class="card tpl" data-act="useTpl" data-id="${t.id}"><div class="row" style="justify-content:space-between"><span class="badge ${t.type==='seq'?'b-violet':'b-mute'}">${t.type==='seq'?'Sequenz · '+t.steps.length+' Schritte':'Einzelne Mail'}</span><button class="x" data-act="delTpl" data-id="${t.id}" title="Löschen">${ic('trash')}</button></div><h4>${esc(t.name)}</h4><p>${esc(t.type==='seq'?t.steps[0].subject+' – '+t.steps[0].body:t.body)}</p><div class="foot"><span>${t.type==='seq'?'Klick: neue Kampagne damit':'Im Editor über „Aus Vorlage laden“'}</span></div></div>`).join('')}
  <div class="card tpl" style="display:grid;place-items:center;border-style:dashed;min-height:170px;box-shadow:none;cursor:default"><div style="text-align:center"><div class="prov" style="margin:0 auto 10px;background:var(--vsoft);color:var(--violet2)">${ic('sparkle')}</div><b>Mit KI schreiben</b><p class="muted" style="font-size:12px;margin-top:4px">Branche + Angebot eingeben, Text erhalten</p><span class="badge b-peach" style="margin-top:8px">Version 2</span></div></div></div></div>`;
-V.finder=()=>`<div class="wrap"><div class="page-head"><div><h1>Lead-Finder</h1><p>Firmen nach Branche und Ort finden und E-Mails von ihren Websites holen.</p></div></div>
- <div class="banner">${ic('sparkle')}<div><b>Vorschau – kommt in Version 2.</b> <span class="muted">So wird der Lead-Finder aussehen. Bis dahin: Leads als CSV importieren.</span></div></div>
- <div class="card" style="padding:20px;opacity:.75;pointer-events:none"><div style="display:grid;grid-template-columns:1.4fr 1fr 140px 1fr auto;gap:12px;align-items:end"><div class="field" style="margin:0"><label>Branche / Suchbegriff</label><input class="input" value="Reinigungsfirma"></div><div class="field" style="margin:0"><label>Ort</label><input class="input" value="Linz"></div><div class="field" style="margin:0"><label>Umkreis</label><select class="select"><option>15 km</option></select></div><div class="field" style="margin:0"><label>Quelle</label><select class="select"><option>Google Maps</option></select></div><button class="btn primary">${ic('search',2)}Suchen</button></div></div>
- <div class="row gap mt"><button class="btn" data-act="import">${ic('upload',2)}Stattdessen CSV importieren</button></div></div>`;
+/* ================= Lead-Finder ================= */
+const FS={meta:null,jobs:[],rows:[],total:0,offset:0,facets:{cities:[],categories:[]},sel:new Set(),job:'all',q:'',has:[],city:'',cat:'',sort:'distance',imported:'',searching:false,poll:null,busy:false,last:store.get('finderLast',{category:'cleaning',keyword:'',location:'Linz',radius:15,max:100})};
+const safeUrl=u=>{try{const x=new URL(u);return /^https?:$/.test(x.protocol)?x.href:''}catch(e){return''}};
+const telOf=p=>String(p||'').replace(/[^\d+()\/ -]/g,'').trim();
+const hostShort=u=>{try{return new URL(u).hostname.replace(/^www\./,'')}catch(e){return''}};
+const JSTAT={queued:['Wartet auf Kartendaten …','b-mute'],searching:['Suche läuft …','b-info'],crawling:['Websites werden geprüft','b-violet'],done:['Fertig','b-good'],error:['Fehler','b-bad']};
+V.finder=()=>{
+ const m=FS.meta,L=FS.last,g=m&&m.sources.google;
+ const groups=m?[...new Set(m.categories.map(c=>c.group))]:[];
+ return `<div class="wrap" style="max-width:1440px"><div class="page-head"><div><h1>Lead-Finder</h1><p>Firmen nach Branche und Ort finden – mit Telefon, Website, E-Mail und Ansprechpartner.</p></div><div class="row gap"><span class="badge ${g?'b-good':'b-mute'}">${ics('globe',12)}${g?'Google Maps aktiv':'OpenStreetMap'}</span></div></div>
+ <div class="card lf-search"><div class="lf-form">
+  <div class="field"><label>Branche</label><select class="select" id="fCat"><option value="">– Eigener Suchbegriff –</option>${groups.map(gr=>`<optgroup label="${esc(gr)}">${m.categories.filter(c=>c.group===gr).map(c=>`<option value="${c.key}" ${L.category===c.key?'selected':''}>${esc(c.label)}</option>`).join('')}</optgroup>`).join('')}</select></div>
+  <div class="field"><label>Suchbegriff <span class="faint">(optional)</span></label><input class="input" id="fKw" placeholder="z. B. Gebäudereinigung" value="${esc(L.keyword)}"></div>
+  <div class="field"><label>Ort</label><input class="input" id="fLoc" placeholder="Stadt oder PLZ" value="${esc(L.location)}"></div>
+  <div class="field"><label>Umkreis</label><select class="select" id="fRad">${[5,10,15,25,50].map(r=>`<option value="${r}" ${+L.radius===r?'selected':''}>${r} km</option>`).join('')}</select></div>
+  <div class="field"><label>Max. Firmen</label><select class="select" id="fMax">${[50,100,200,300].map(r=>`<option value="${r}" ${+L.max===r?'selected':''}>${r}</option>`).join('')}</select></div>
+  ${g?`<div class="field"><label>Quelle</label><select class="select" id="fSrc"><option value="google">Google Maps</option><option value="osm">OpenStreetMap</option></select></div>`:''}
+  <button class="btn primary lf-go" data-act="fSearch" id="fGo" ${FS.searching?'disabled':''}>${FS.searching?spinner+'Suche läuft …':ic('search',2)+'Firmen suchen'}</button></div>
+  ${m&&!g?`<div class="lf-hint">${ics('info',14)}<span>Quelle ist gerade OpenStreetMap (kostenlos, aber lückenhaft). Mit einem Google-Maps-Schlüssel findest du ein Vielfaches an Firmen.</span></div>`:''}</div>
+ <div class="lf-grid">
+  <div class="card lf-jobs"><div class="lf-jobs-h">Deine Suchen</div><div id="fJobs">${jobsHtml()}</div></div>
+  <div class="card lf-res"><div class="lf-tools">
+   <div class="search" style="max-width:250px;padding:7px 11px">${ics('search')}<input id="fQ" placeholder="Firma, Ort, E-Mail …" value="${esc(FS.q)}"></div>
+   <div class="lf-chips">${[['email','Mit E-Mail','mail'],['phone','Mit Telefon','phone'],['website','Mit Website','globe'],['contact','Mit Ansprechpartner','users']].map(([k,l,i])=>`<button class="fchip ${FS.has.includes(k)?'on':''}" data-act="fHas" data-k="${k}">${ics(i,13)}${l}</button>`).join('')}<button class="fchip ${FS.imported==='no'?'on':''}" data-act="fImp">${ics('plus',13)}Noch nicht übernommen</button></div>
+   <div class="row gap-s" style="margin-left:auto"><select class="select sm" id="fCity"><option value="">Alle Orte</option>${FS.facets.cities.map(c=>`<option value="${esc(c.v)}" ${FS.city===c.v?'selected':''}>${esc(c.v)} (${c.n})</option>`).join('')}</select><select class="select sm" id="fCatF"><option value="">Alle Kategorien</option>${FS.facets.categories.map(c=>`<option value="${esc(c.v)}" ${FS.cat===c.v?'selected':''}>${esc(c.v)} (${c.n})</option>`).join('')}</select><select class="select sm" id="fSort">${[['distance','Nächste zuerst'],['name','Name A–Z'],['city','Ort'],['rating','Meiste Bewertungen'],['newest','Neueste']].map(([k,l])=>`<option value="${k}" ${FS.sort===k?'selected':''}>${l}</option>`).join('')}</select></div></div>
+   <div id="fBulk"></div><div id="fTable"><div class="empty">${spinner}</div></div></div></div>
+ <p class="faint" style="font-size:11.5px;margin-top:10px">Firmendaten: ${g?'Google Maps bzw. ':''}© OpenStreetMap-Mitwirkende (ODbL) · Kontaktdaten aus den öffentlichen Websites der Firmen.</p></div>`;
+};
+function jobsHtml(){
+ if(!FS.jobs.length)return `<div class="empty" style="padding:30px 14px;font-size:12.5px">${ics('radar',22)}<p style="margin-top:8px">Noch keine Suche. Branche und Ort wählen und los.</p></div>`;
+ const all=FS.jobs.reduce((a,j)=>a+j.total,0);
+ return `<div class="lf-job ${FS.job==='all'?'on':''}" data-act="fJob" data-id="all"><div class="t">${ics('users',14)}<b>Alle Ergebnisse</b><span class="count">${fmt(all)}</span></div></div>`+FS.jobs.map(j=>{const st=JSTAT[j.status]||JSTAT.done;const prog=j.status==='crawling'&&j.withWebsite?Math.round(j.crawled/j.withWebsite*100):j.status==='done'?100:0;
+  return `<div class="lf-job ${FS.job===j.id?'on':''}" data-act="fJob" data-id="${j.id}"><div class="t"><b title="${esc(j.label)}">${esc(j.keyword||(FS.meta?.categories.find(c=>c.key===j.category)||{}).label||'Suche')}</b><span class="count">${fmt(j.total)}</span></div>
+  <div class="s">${esc(j.location)} · ${j.radius} km · ${j.source==='google'?'Google':'OSM'} · ${when(j.createdAt)}</div>
+  ${j.status==='done'?`<div class="s"><span style="color:var(--good)">${fmt(j.withEmail)} E-Mails</span> · ${fmt(j.withPhone)} Telefon</div>`:j.status==='error'?`<div class="s" style="color:var(--bad)">${esc(j.error||'Fehler')}</div><button class="btn sm mt-s" data-act="fRetry" data-id="${j.id}">${ic('refresh')}Erneut versuchen</button>`:`<div class="s">${spinner}<span>${st[0]}${j.status==='crawling'?` ${j.crawled}/${j.withWebsite}`:''}</span></div>${j.status==='queued'&&j.error?`<div class="s faint">${esc(j.error)} – neuer Versuch läuft automatisch</div>`:''}<div class="prog"><i style="width:${Math.max(4,prog)}%"></i></div>`}
+  <button class="x lf-del" data-act="fDelJob" data-id="${j.id}" title="Suche löschen">${ic('trash')}</button></div>`}).join('');
+}
+const fQs=()=>{const p=new URLSearchParams({job:FS.job,sort:FS.sort});if(FS.q)p.set('q',FS.q);if(FS.has.length)p.set('has',FS.has.join(','));if(FS.city)p.set('city',FS.city);if(FS.cat)p.set('category',FS.cat);if(FS.imported)p.set('imported',FS.imported);return p};
+async function loadFinder(){
+ const j=await get('/api/finder');if(!j.ok)return;
+ const first=!FS.meta;FS.meta={categories:j.categories,sources:j.sources};FS.jobs=j.jobs;
+ if(FS.job!=='all'&&!FS.jobs.find(x=>x.id===FS.job))FS.job='all';
+ if(first&&S.view==='finder'){render();return}
+ const el=$('#fJobs');if(el)el.innerHTML=jobsHtml();
+ await loadResults(true);fPoll();
+}
+async function loadResults(reset){
+ if(reset){FS.offset=0}
+ const p=fQs();p.set('offset',FS.offset);p.set('limit',100);
+ const j=await get('/api/finder/results?'+p);if(!j.ok||S.view!=='finder')return;
+ if(reset){FS.rows=j.rows;FS.facets=j.facets}else FS.rows=FS.rows.concat(j.rows);
+ FS.total=j.total;drawResults();
+ if(reset)['fCity','fCatF'].forEach(id=>{const el=$('#'+id);if(!el)return;const list=id==='fCity'?FS.facets.cities:FS.facets.categories,cur=id==='fCity'?FS.city:FS.cat;el.innerHTML=`<option value="">${id==='fCity'?'Alle Orte':'Alle Kategorien'}</option>`+list.map(c=>`<option value="${esc(c.v)}" ${cur===c.v?'selected':''}>${esc(c.v)} (${c.n})</option>`).join('')});
+}
+function drawResults(){
+ const el=$('#fTable');if(!el)return;
+ for(const id of [...FS.sel])if(!FS.rows.find(r=>r.id===id))FS.sel.delete(id);
+ const running=FS.jobs.some(j=>['queued','searching','crawling'].includes(j.status));
+ if(!FS.rows.length){el.innerHTML=`<div class="empty" style="padding:60px 20px">${ics('radar',28)}<h3 style="margin:12px 0 6px;color:var(--text)">${FS.jobs.length?(running?'Ergebnisse kommen gleich …':'Keine Firmen für diesen Filter'):'Starte deine erste Suche'}</h3><p>${FS.jobs.length?(running?'Die Websites werden gerade geprüft – die Liste füllt sich automatisch.':'Filter lockern, z. B. „Mit E-Mail“ ausschalten.'):'Oben Branche und Ort wählen. Der Lead-Finder sucht die Firmen und holt Telefon, E-Mail und Ansprechpartner von ihren Websites.'}</p></div>`;drawBulk();return}
+ const allOn=FS.rows.length&&FS.rows.every(r=>FS.sel.has(r.id));
+ el.innerHTML=`<div class="lf-scroll"><table class="table lf-table"><thead><tr><th style="width:34px"><input type="checkbox" class="cb" data-fall ${allOn?'checked':''}></th><th>Firma</th><th>Ansprechpartner</th><th>Kontakt</th><th>Website</th></tr></thead><tbody>
+ ${FS.rows.map(r=>{const w=safeUrl(r.website),tel=telOf(r.phone);return `<tr class="click ${FS.sel.has(r.id)?'sel':''}" data-act="fRow" data-id="${r.id}"><td><input type="checkbox" class="cb" data-fsel="${r.id}" ${FS.sel.has(r.id)?'checked':''}></td>
+ <td><div class="row gap">${av(r.name,30)}<div style="min-width:0"><div class="cell-main lf-name" title="${esc(r.name)}">${esc(r.name)}</div><div class="cell-sub lf-sub">${r.imported?'<span class="lf-dot good" title="In Leadliste übernommen"></span>':''}${esc([r.category,r.city].filter(Boolean).join(' · '))}${r.distance!=null?` · ${num(r.distance)} km`:''}${r.reviews?` · ★ ${num(r.rating)} (${fmt(r.reviews)})`:''}</div></div></div></td>
+ <td>${r.contact?`<div style="font-weight:550;white-space:nowrap">${esc(r.contact.first+' '+r.contact.last)}</div><div class="cell-sub">${esc(r.contact.role)}</div>`:'<span class="faint">—</span>'}</td>
+ <td class="nw lf-contact"><div>${ics('phone',13)}${tel?`<a class="lf-link" href="tel:${esc(tel)}">${esc(r.phone)}</a>`:'<span class="faint">—</span>'}</div><div>${ics('mail',13)}${r.email?`<a class="lf-link" href="mailto:${esc(r.email)}">${esc(r.email)}</a>${r.emails.length>1?`<span class="lf-more">+${r.emails.length-1}</span>`:''}`:r.crawl==='pending'||r.crawl==='running'?`<span class="faint">${spinner} wird gesucht</span>`:r.crawl==='error'?`<span class="faint" title="${esc(r.crawlError||'')}">Website nicht lesbar</span>`:'<span class="faint">—</span>'}</div></td>
+ <td>${w?`<a class="lf-link lf-web" href="${esc(w)}" target="_blank" rel="noopener noreferrer" title="${esc(w)}">${esc(hostShort(w))}</a>`:'<span class="faint">—</span>'}</td></tr>`}).join('')}</tbody></table></div>
+ <div class="lf-foot"><span class="muted">${fmt(FS.rows.length)} von ${fmt(FS.total)} Firmen</span>${FS.rows.length<FS.total?`<button class="btn sm" data-act="fMore">Mehr laden</button>`:''}<span style="margin-left:auto" class="row gap-s"><button class="btn sm ghost" data-act="dl" data-url="/api/finder/export?${fQs()}">${ic('file')}Export (Excel)</button>${FS.total?`<button class="btn sm" data-act="fImport" data-all="1">${ic('plus',2)}Alle ${fmt(FS.total)} in Leadliste</button>`:''}</span></div>`;
+ drawBulk();
+}
+function drawBulk(){const el=$('#fBulk');if(!el)return;const n=FS.sel.size;
+ el.innerHTML=n?`<div class="lf-bulk"><b>${n} ausgewählt</b><button class="btn sm primary" data-act="fImport">${ic('plus',2)}In Leadliste übernehmen</button><button class="btn sm" data-act="fRecrawl">${ic('refresh')}Websites neu prüfen</button><button class="btn sm ghost danger" data-act="fDelSel">${ic('trash')}Löschen</button><button class="btn sm ghost" data-act="fClear" style="margin-left:auto">Auswahl aufheben</button></div>`:''}
+async function fPoll(){
+ clearTimeout(FS.poll);if(S.view!=='finder')return;
+ const j=FS.jobs.find(x=>['queued','crawling'].includes(x.status));if(!j)return;
+ FS.poll=setTimeout(async()=>{if(S.view!=='finder'||FS.busy)return;FS.busy=true;
+  try{const r=await post(`/api/finder/jobs/${j.id}/step`);if(r.ok){const i=FS.jobs.findIndex(x=>x.id===j.id);if(i>=0)FS.jobs[i]=r.job;const el=$('#fJobs');if(el)el.innerHTML=jobsHtml();if(FS.job==='all'||FS.job===j.id)await loadResults(true)}}
+  finally{FS.busy=false}fPoll()},j.status==='queued'?8000:1500);
+}
+async function openFinderLead(id){
+ $('#panel').innerHTML=`<div class="panel-b"><div class="empty">${spinner}</div></div>`;$('#panel').classList.add('open');$('#panelBg').classList.add('open');
+ const j=await get('/api/finder/results/'+id);if(!j.ok){$('#panel').innerHTML=`<div class="panel-b">${esc(j.error)}</div>`;return}
+ const r=j.result,w=safeUrl(r.website),tel=telOf(r.phone),addr=[r.street,[r.postcode,r.city].filter(Boolean).join(' '),r.country].filter(Boolean).join(', ');
+ const maps='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent([r.name,addr].filter(Boolean).join(', '));
+ const soc=Object.entries(r.socials||{}).map(([k,v])=>[k,safeUrl(/^https?:/.test(v)?v:'')]).filter(x=>x[1]);
+ const row=(icn,label,val)=>`<div class="lf-kv">${ics(icn,15)}<div><div class="k">${label}</div><div class="v">${val}</div></div></div>`;
+ $('#panel').innerHTML=`<div class="panel-h">${av(r.name,46)}<div style="flex:1;min-width:0"><h3 style="font-size:17px;line-height:1.3">${esc(r.name)}</h3><div class="muted" style="font-size:12.5px;margin-top:3px">${esc([r.category,r.city].filter(Boolean).join(' · '))}${r.reviews?` · ★ ${num(r.rating)} (${fmt(r.reviews)} Bewertungen)`:''}</div></div><button class="x" data-act="closePanel">${ic('x')}</button></div>
+ <div class="panel-b">
+  <div class="lf-actions">${tel?`<a class="btn" href="tel:${esc(tel)}">${ic('phone')}Anrufen</a>`:''}${r.email?`<a class="btn" href="mailto:${esc(r.email)}">${ic('mail')}E-Mail</a>`:''}${w?`<a class="btn" href="${esc(w)}" target="_blank" rel="noopener noreferrer">${ic('globe')}Website</a>`:''}<a class="btn" href="${esc(maps)}" target="_blank" rel="noopener noreferrer">${ic('search')}Karte</a></div>
+  <div class="lf-kvs">
+   ${row('users','Ansprechpartner',r.contact?`<b>${esc(r.contact.first+' '+r.contact.last)}</b> <span class="muted">· ${esc(r.contact.role)}</span>`:'<span class="faint">Nicht gefunden</span>')}
+   ${row('phone','Telefon',tel?`<a class="lf-link" href="tel:${esc(tel)}">${esc(r.phone)}</a> <button class="x" data-act="copyTxt" data-v="${esc(r.phone)}" title="Kopieren">${ic('copy')}</button>`:'<span class="faint">—</span>')}
+   ${row('mail','E-Mail',r.emails.length?r.emails.map((e,i)=>`<div class="row gap-s"><a class="lf-link" href="mailto:${esc(e)}">${esc(e)}</a>${i===0&&r.emails.length>1?'<span class="badge b-violet">Beste</span>':''}<button class="x" data-act="copyTxt" data-v="${esc(e)}" title="Kopieren">${ic('copy')}</button></div>`).join(''):r.crawl==='pending'||r.crawl==='running'?`${spinner} Website wird gerade durchsucht`:'<span class="faint">Keine gefunden</span>')}
+   ${row('globe','Website',w?`<a class="lf-link" href="${esc(w)}" target="_blank" rel="noopener noreferrer">${esc(hostShort(w))}</a>`:'<span class="faint">—</span>')}
+   ${row('home','Adresse',addr?esc(addr)+(r.distance!=null?` <span class="muted">· ${num(r.distance)} km entfernt</span>`:''):'<span class="faint">—</span>')}
+   ${r.opening?row('clock','Öffnungszeiten',esc(r.opening)):''}
+   ${soc.length?row('sparkle','Social Media',soc.map(([k,v])=>`<a class="lf-link" href="${esc(v)}" target="_blank" rel="noopener noreferrer">${({facebook:'Facebook',instagram:'Instagram',linkedin:'LinkedIn'})[k]||esc(k)}</a>`).join(' · ')):''}
+  </div>
+  <div class="callout mt">${ic('info')}<div>${r.imported?`In Leadliste <b>${esc(r.list?r.list.name:'')}</b> übernommen.`:r.crawl==='error'?`Website konnte nicht gelesen werden: ${esc(r.crawlError||'')}`:r.crawl==='done'?'Website wurde durchsucht (Startseite, Impressum, Kontakt).':r.crawl==='skipped'?'Keine Website hinterlegt.':'Website wird gerade durchsucht …'}</div></div>
+  <div class="row gap mt" style="flex-wrap:wrap">${r.imported?`<button class="btn" data-act="fGoList" data-id="${r.importedList||''}">${ic('users')}Zur Leadliste</button>`:`<button class="btn primary" data-act="fImport" data-one="${r.id}" ${r.email?'':'disabled title="Keine E-Mail gefunden"'}>${ic('plus',2)}In Leadliste übernehmen</button>`}${w?`<button class="btn" data-act="fRecrawl" data-one="${r.id}">${ic('refresh')}Website neu prüfen</button>`:''}<button class="btn ghost danger" data-act="fDelSel" data-one="${r.id}">${ic('trash')}</button></div>
+ </div>`;
+}
+function importModal(ids,all){
+ const n=all?FS.total:ids.length;const withMail=all?null:FS.rows.filter(r=>ids.includes(r.id)&&r.email).length;
+ const job=FS.jobs.find(j=>j.id===FS.job);
+ modal(`${mh('In Leadliste übernehmen',`${fmt(n)} Firma${n===1?'':'en'} ausgewählt${withMail!=null?` · ${fmt(withMail)} mit E-Mail`:''}`)}<div class="modal-b">
+  <div class="field"><label>Leadliste</label><select class="select" id="fiList"><option value="new">+ Neue Liste</option>${C.lists.map(l=>`<option value="${l.id}">${esc(l.name)} (${l.count})</option>`).join('')}</select></div>
+  <div class="field" id="fiNameF"><label>Name der neuen Liste</label><input class="input" id="fiName" value="${esc(job?job.label:'Lead-Finder '+new Date().toLocaleDateString('de-AT'))}"></div>
+  <p class="muted" style="font-size:12.5px">Übernommen werden Firmen mit E-Mail-Adresse. Firma, Ort, Branche, Telefon, Website und – falls gefunden – Vor- und Nachname des Ansprechpartners kommen mit, damit {Vorname} und {Firma} in deinen Mails funktionieren. Doppelte und gesperrte Adressen werden übersprungen.</p><div id="fiRes"></div></div>
+  <div class="modal-f"><button class="btn ghost" data-act="closeModal">Abbrechen</button><button class="btn primary" id="fiGo" data-act="fImportGo" data-all="${all?1:''}">${ic('plus',2)}Übernehmen</button></div>`);
+ FS.pendingIds=ids;
+ $('#fiList').addEventListener('change',e=>{$('#fiNameF').style.display=e.target.value==='new'?'':'none'});
+}
 V.settings=()=>{
  const st=C.settings;
  const tabs=[['workspace','Workspace','home'],['security','Sicherheit & Login','key'],['users','Benutzer','users'],['unsub','Abmeldung & Fußzeile','shield'],['block','Sperrliste','x'],['look','Darstellung','eye'],['onb','Onboarding & Hilfe','book'],['data','Daten','file']];
@@ -533,7 +641,7 @@ function render(keepScroll){
  if(S.view!=='campaigns'||!S.camp){S.editId=null}
  $('#content').innerHTML=V[S.view]();$('#content').scrollTop=keepScroll?sc:0;
  document.querySelectorAll('[data-i]').forEach(e=>{if(e.tagName==='SPAN'&&I[e.dataset.i]&&!e.innerHTML)e.innerHTML=ic(e.dataset.i)});
- if(S.view==='accounts')calc();if(S.view==='leads'&&C.leadsCount)loadLeads();if(S.view==='inbox')loadInbox();
+ if(S.view==='accounts')calc();if(S.view==='leads'&&C.leadsCount)loadLeads();if(S.view==='inbox')loadInbox();if(S.view==='finder')loadFinder();
 }
 async function refresh(full=true){const ok=await load();if(ok&&full)render(true);else if(ok){renderSide();renderTop()}}
 function go(v){S.view=v;if(v!=='campaigns')S.camp=null;closePanel();tour(-1);render()}
@@ -782,3 +890,45 @@ const _setTab=A.setTab;A.setTab=d=>{if(['security','users'].includes(d.k))SEC=nu
 /* ================= Boot ================= */
 document.documentElement.dataset.theme=store.get('theme','dark');
 boot();
+/* ---------- Lead-Finder: Aktionen ---------- */
+Object.assign(A,{
+ fSearch:async()=>{
+  const b={category:$('#fCat').value,keyword:$('#fKw').value.trim(),location:$('#fLoc').value.trim(),radius:+$('#fRad').value,max:+$('#fMax').value,source:$('#fSrc')?$('#fSrc').value:'osm'};
+  if(!b.category&&!b.keyword)return toast('Bitte Branche wählen oder Suchbegriff eingeben','warn');if(b.location.length<2)return toast('Bitte einen Ort eingeben','warn');
+  FS.last=b;store.set('finderLast',b);FS.searching=true;const g=$('#fGo');if(g){g.disabled=true;g.innerHTML=spinner+'Suche läuft …'}
+  const j=await post('/api/finder/search',b);FS.searching=false;if(g){g.disabled=false;g.innerHTML=ic('search',2)+'Firmen suchen'}
+  if(!j.ok)return toast(esc(j.error),'bad');
+  FS.job=j.job.id;FS.sel.clear();
+  if(j.job.status==='error')toast(esc(j.job.error||'Suche fehlgeschlagen'),'bad');else if(j.job.status==='queued')toast('Kartendaten-Server ausgelastet – neuer Versuch läuft automatisch','warn');else toast(`${fmt(j.job.total)} Firmen gefunden – Websites werden jetzt durchsucht`);
+  await loadFinder();
+ },
+ fJob:(d,el,e)=>{if(e.target.closest('[data-act="fDelJob"],[data-act="fRetry"]'))return;FS.job=d.id;FS.sel.clear();FS.city='';FS.cat='';$('#fJobs').innerHTML=jobsHtml();loadResults(true)},
+ fDelJob:d=>confirmModal('Suche löschen?','Die Suche und alle ihre Ergebnisse werden gelöscht. Bereits übernommene Leads bleiben in deinen Leadlisten.','Löschen',async()=>{await del('/api/finder/jobs/'+d.id);if(FS.job===d.id)FS.job='all';toast('Suche gelöscht');loadFinder()}),
+ fRetry:async d=>{await post(`/api/finder/jobs/${d.id}/retry`);toast('Neuer Versuch gestartet');loadFinder()},
+ fHas:d=>{const i=FS.has.indexOf(d.k);i>=0?FS.has.splice(i,1):FS.has.push(d.k);document.querySelectorAll('.fchip[data-act="fHas"]').forEach(b=>b.classList.toggle('on',FS.has.includes(b.dataset.k)));loadResults(true)},
+ fImp:(d,el)=>{FS.imported=FS.imported==='no'?'':'no';el.classList.toggle('on',FS.imported==='no');loadResults(true)},
+ fMore:()=>{FS.offset+=100;loadResults(false)},
+ fRow:(d,el,e)=>{if(e.target.closest('a,input,button'))return;openFinderLead(d.id)},
+ fClear:()=>{FS.sel.clear();drawResults()},
+ fImport:d=>{if(d.one){closePanel();return importModal([d.one],false)}if(d.all)return importModal([],true);importModal([...FS.sel],false)},
+ fImportGo:async(d)=>{const b=$('#fiGo');b.disabled=true;b.innerHTML=spinner+'Übernehme …';
+  const body={listId:$('#fiList').value,listName:$('#fiName').value};if(d.all){const f=Object.fromEntries(fQs());body.filter=f}else body.ids=FS.pendingIds;
+  const j=await post('/api/finder/import',body);b.disabled=false;b.innerHTML=ic('plus',2)+'Übernehmen';
+  if(!j.ok){$('#fiRes').innerHTML=resBox('err',esc(j.error));return}
+  closeModal();await refresh(false);FS.sel.clear();await loadResults(true);
+  const extra=[j.duplicates&&`${j.duplicates} schon in der Liste`,j.blocked&&`${j.blocked} gesperrt`,j.invalid&&`${j.invalid} ungültig`,j.noEmail&&`${j.noEmail} ohne E-Mail`].filter(Boolean).join(', ');
+  modal(`${mh('Übernommen',`${fmt(j.imported)} Lead${j.imported===1?'':'s'} in der Leadliste`)}<div class="modal-b">${resBox('ok',`<b>${fmt(j.imported)} neue Leads</b>${extra?' · übersprungen: '+esc(extra):''}`)}<p class="muted mt" style="font-size:12.5px">Du kannst die Liste jetzt in einer Kampagne auswählen.</p></div><div class="modal-f"><button class="btn ghost" data-act="closeModal">Weiter suchen</button><button class="btn primary" data-act="fGoList" data-id="${j.listId}" data-close="1">${ic('users')}Zur Leadliste</button></div>`);
+ },
+ fGoList:d=>{closeModal();closePanel();S.leadList=d.id||'all';go('leads')},
+ fRecrawl:async d=>{const ids=d.one?[d.one]:[...FS.sel];const j=await post('/api/finder/results/recrawl',{ids});if(!j.ok)return toast(esc(j.error),'bad');toast(`${ids.length} Website${ids.length===1?'':'s'} werden neu geprüft`);closePanel();FS.sel.clear();loadFinder()},
+ fDelSel:d=>{const ids=d.one?[d.one]:[...FS.sel];confirmModal(`${ids.length} Firma${ids.length===1?'':'en'} löschen?`,'Die Einträge verschwinden aus dem Lead-Finder. Bereits übernommene Leads bleiben in deinen Leadlisten.','Löschen',async()=>{await post('/api/finder/results/delete',{ids});closePanel();FS.sel.clear();toast('Gelöscht');loadFinder()})}
+});
+const finderSearch=debounce(()=>loadResults(true),300);
+document.addEventListener('input',e=>{if(e.target.id==='fQ'){FS.q=e.target.value;finderSearch()}});
+document.addEventListener('change',e=>{const t=e.target;
+ if(t.id==='fCity'){FS.city=t.value;return loadResults(true)}if(t.id==='fCatF'){FS.cat=t.value;return loadResults(true)}if(t.id==='fSort'){FS.sort=t.value;return loadResults(true)}
+ if(t.id==='fCat'&&t.value){const k=$('#fKw');if(k)k.value=''}
+ if(t.dataset.fsel){t.checked?FS.sel.add(t.dataset.fsel):FS.sel.delete(t.dataset.fsel);t.closest('tr').classList.toggle('sel',t.checked);const a=document.querySelector('[data-fall]');if(a)a.checked=FS.rows.every(r=>FS.sel.has(r.id));drawBulk()}
+ if(t.dataset.fall!==undefined){FS.rows.forEach(r=>t.checked?FS.sel.add(r.id):FS.sel.delete(r.id));drawResults()}
+});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&['fLoc','fKw'].includes(e.target.id))A.fSearch()});

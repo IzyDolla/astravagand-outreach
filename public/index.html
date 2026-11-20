@@ -347,6 +347,65 @@ mark.miss{background:rgba(248,113,113,.15);color:var(--bad)}
 .settings-nav{display:flex;flex-direction:column;gap:2px}
 @media (max-width:1100px){.g4{grid-template-columns:repeat(2,1fr)}.g-main,.g3{grid-template-columns:1fr}.steps{grid-template-columns:repeat(2,1fr)}.seq{grid-template-columns:1fr}.acc{grid-template-columns:1.5fr 1fr 1fr auto}.acc .hide-s{display:none}}
 @media (max-width:800px){.app{grid-template-columns:1fr}.side{display:none}.content{padding:20px 16px}.inbox{grid-template-columns:1fr}.inbox-f{display:none}.g2{grid-template-columns:1fr}}
+
+/* Lead-Finder */
+.lf-contact div{display:flex;align-items:center;gap:7px;line-height:1.7}
+.lf-contact svg{color:var(--faint)}
+.lf-search{padding:18px 20px 16px;margin-bottom:16px}
+.lf-form{display:grid;grid-template-columns:1.3fr 1.1fr 1fr 110px 110px auto auto;gap:12px;align-items:end}
+.lf-form .field{margin:0}
+.lf-go{height:40px;white-space:nowrap}
+.lf-hint{display:flex;gap:8px;align-items:center;margin-top:12px;font-size:12px;color:var(--muted)}
+.lf-grid{display:grid;grid-template-columns:250px 1fr;gap:16px;align-items:start}
+.lf-jobs{padding:8px;position:sticky;top:16px;max-height:calc(100vh - 120px);overflow-y:auto}
+.lf-jobs-h{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);font-weight:700;padding:8px 10px 6px}
+.lf-job{position:relative;padding:10px 12px;border-radius:10px;cursor:pointer;border:1px solid transparent;margin-bottom:2px}
+.lf-job:hover{background:var(--hover)}
+.lf-job.on{background:var(--vsoft);border-color:var(--vline)}
+.lf-job .t{display:flex;align-items:center;gap:8px;font-size:13px;padding-right:22px}
+.lf-job .t b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650}
+.lf-job .count{margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:600}
+.lf-job .s{font-size:11.5px;color:var(--muted);margin-top:4px;display:flex;align-items:center;gap:6px}
+.lf-job .s .spin{width:11px;height:11px;border-width:2px}
+.lf-job .lf-del{position:absolute;top:8px;right:6px;opacity:0;transition:opacity .15s}
+.lf-job:hover .lf-del{opacity:1}
+.prog{height:4px;border-radius:4px;background:var(--surface2);margin-top:8px;overflow:hidden}
+.prog i{display:block;height:100%;background:linear-gradient(90deg,var(--violet),#fdba8c);border-radius:4px;transition:width .4s}
+.lf-res{min-width:0}
+.lf-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--border)}
+.lf-chips{display:flex;gap:6px;flex-wrap:wrap}
+.fchip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all .12s}
+.fchip:hover{color:var(--text);border-color:var(--border2)}
+.fchip.on{background:var(--vsoft);border-color:var(--vline);color:var(--text)}
+.select.sm{height:32px;padding:4px 28px 4px 10px;font-size:12.5px;width:auto;max-width:180px}
+.lf-bulk{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 16px;background:var(--vsoft);border-bottom:1px solid var(--vline);font-size:13px}
+.lf-scroll{overflow-x:auto}
+.lf-table td{padding:11px 14px;font-size:13px}
+.lf-table th{padding:11px 14px}
+.lf-table tr.sel td{background:var(--vsoft)}
+.lf-table .lf-name{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lf-table .lf-sub{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.lf-table td.nw{white-space:nowrap}
+.lf-web{display:inline-block;max-width:170px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
+.lf-more{font-size:11px;font-weight:600;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:1px 6px;margin-left:6px}
+.lf-dot{width:7px;height:7px;border-radius:50%;flex:none}.lf-dot.good{background:var(--good)}
+.lf-table td .spin,.lf-job .s .spin{width:11px;height:11px;border-width:2px;vertical-align:-1px;display:inline-block;flex:none;border-radius:50%}
+.lf-link{color:var(--text);text-decoration:none;border-bottom:1px dotted var(--border2);white-space:nowrap}
+.lf-link:hover{color:var(--violet2);border-bottom-color:var(--violet2)}
+.lf-link svg{transform:rotate(135deg);opacity:.6;vertical-align:-1px}
+.cb{width:15px;height:15px;accent-color:var(--violet);cursor:pointer}
+.lf-foot{display:flex;gap:10px;align-items:center;padding:12px 16px;border-top:1px solid var(--border);font-size:12.5px;flex-wrap:wrap}
+.lf-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:18px}
+.lf-actions .btn{justify-content:center;flex-direction:column;gap:4px;height:auto;padding:10px 6px;font-size:12px;text-decoration:none}
+.lf-kvs{display:flex;flex-direction:column;gap:2px}
+.lf-kv{display:flex;gap:12px;padding:10px 4px;border-bottom:1px solid var(--border);align-items:flex-start}
+.lf-kv>svg{margin-top:3px;color:var(--faint)}
+.lf-kv .k{font-size:11.5px;color:var(--faint);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.lf-kv .v{font-size:13.5px;word-break:break-word;line-height:1.55}
+.lf-kv .v .row{margin:2px 0}
+.lf-kv .v .x{width:24px;height:24px;display:inline-grid;vertical-align:middle;margin-left:4px}
+.mt-s{margin-top:8px}
+@media (max-width:1180px){.lf-form{grid-template-columns:1fr 1fr 1fr}.lf-grid{grid-template-columns:1fr}.lf-jobs{position:static;max-height:none}}
 </style>
 </head>
 <body>

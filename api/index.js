@@ -55,7 +55,7 @@ module.exports = async (req, res) => {
       const got = await q(sb().rpc('acquire_lock', { p_name: 'tick', p_seconds: 58 }));
       if (!got) return send(res, 200, { ok: true, skipped: 'läuft bereits' });
       const deadline = Date.now() + 45000;
-      try { const r = await C.tick(deadline); await C.pollDue(deadline + 8000); return send(res, 200, { ok: true, ...r }); }
+      try { const r = await C.tick(deadline); await C.pollDue(deadline + 8000); let f = {}; const fEnd = deadline + 11000; if (fEnd - Date.now() > 10000) f = await require('../lib/finder').process(fEnd).catch(e => ({ finderError: e.message })); return send(res, 200, { ok: true, ...r, finder: f }); }
       finally { await q(sb().rpc('release_lock', { p_name: 'tick' })).catch(() => {}); }
     }
     if (req.method !== 'GET' && req.headers['x-ao'] !== '1') return send(res, 403, { ok: false, error: 'Anfrage blockiert (Sicherheitsprüfung).' });

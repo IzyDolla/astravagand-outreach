@@ -2,16 +2,16 @@
 // Minimaler In-Memory-Ersatz für supabase-js (nur für lokale Tests)
 const crypto = require('crypto');
 const REL = { workspaces: 'ws_id', leads: 'lead_id', campaigns: 'campaign_id', accounts: 'account_id', lists: 'list_id' };
-const UNIQUE = { members: ['ws_id', 'user_id'], accounts: ['ws_id', 'email'], leads: ['list_id', 'email'], enrollments: ['campaign_id', 'lead_id'], blocklist: ['ws_id', 'value'], processed: ['message_id'], allowed_signups: ['email'], profiles: ['user_id'], locks: ['name'] };
+const UNIQUE = { members: ['ws_id', 'user_id'], accounts: ['ws_id', 'email'], leads: ['list_id', 'email'], enrollments: ['campaign_id', 'lead_id'], blocklist: ['ws_id', 'value'], processed: ['message_id'], finder_results: ['job_id', 'ext_id'], allowed_signups: ['email'], profiles: ['user_id'], locks: ['name'] };
 const PK = { members: null, profiles: 'user_id', processed: 'message_id', allowed_signups: 'email', locks: 'name' };
 const DEFAULTS = {
   workspaces: { settings: {} }, accounts: { status: 'ok', warmup: true, max_per_day: 40, imap_last_uid: 0, smtp_port: 465, imap_port: 993 },
   leads: { first: '', last: '', company: '', city: '', industry: '', phone: '', custom: {}, email_check: 'unchecked' },
   campaigns: { status: 'draft', steps: [], schedule: {}, lists: [], accounts: [], daily_new: 50, stop_company: true },
   enrollments: { step: 0, status: 'pending', history: [], errors: 0, refs: [], account_id: null, next_at: null }, sends: { test: false },
-  inbox: { read: false }, templates: { subject: '', body: '' }, members: { role: 'member' }
+  inbox: { read: false }, finder_jobs: { status: 'queued', attempts: 0, total: 0, with_email: 0, with_phone: 0, with_website: 0, crawled: 0, error: null, center: null, claimed_at: null }, finder_results: { crawl_status: 'pending', emails: [], socials: {}, email: null, contact_first: null, imported_at: null, imported_list: null, claimed_at: null, phone: '', website: '' }, templates: { subject: '', body: '' }, members: { role: 'member' }
 };
-function makeDb() { return { workspaces: [], members: [], profiles: [], accounts: [], lists: [], leads: [], campaigns: [], enrollments: [], sends: [], inbox: [], blocklist: [], templates: [], processed: [], audit: [], allowed_signups: [], locks: [] }; }
+function makeDb() { return { workspaces: [], members: [], profiles: [], accounts: [], lists: [], leads: [], campaigns: [], enrollments: [], sends: [], inbox: [], blocklist: [], templates: [], processed: [], audit: [], allowed_signups: [], locks: [], finder_jobs: [], finder_results: [] }; }
 let clock = 0; const ts = () => new Date(Date.now() + (clock++)).toISOString();
 
 function parseSelect(sel) {
@@ -42,6 +42,7 @@ class Query {
   order(c, o = {}) { this._order.push([c, o.ascending !== false, o.nullsFirst]); return this; }
   limit(n) { this._limit = n; return this; }
   range(a, b) { this._range = [a, b]; return this; }
+  or(expr) { const parts = String(expr).split(',').map(x => { const [c, op, ...v] = x.split('.'); return [c, op, v.join('.')]; }); return this._f(r => parts.some(([c, op, v]) => op === 'ilike' && new RegExp('^' + v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*') + '$', 'i').test(String(this._get(r, c) ?? '')))); }
   maybeSingle() { this._single = 'maybe'; return this; }
   single() { this._single = 'one'; return this; }
   _match(r) { return this.filters.every(f => f(r)); }
@@ -54,7 +55,7 @@ class Query {
   _projectPlain(r, cols) { const cs = cols.split(',').map(s => s.trim()); return cs.includes('*') ? { ...r } : Object.fromEntries(cs.map(c => [c, r[c]])); }
   _innerOk(r, sel) { const { rels } = parseSelect(sel || ''); return rels.filter(x => x.inner).every(rel => this.db[rel.name].some(y => y.id === r[REL[rel.name]])); }
   _uniqKey(r) { const u = UNIQUE[this.t]; return u ? u.map(k => r[k]).join('|') : null; }
-  _fill(r) { const row = { ...(DEFAULTS[this.t] || {}), ...JSON.parse(JSON.stringify(r)) }; if (PK[this.t] === undefined && !row.id) row.id = crypto.randomUUID(); if (this.t === 'audit' && !row.id) row.id = this.db.audit.length + 1; if (!row.created_at) row.created_at = ts(); if (['sends', 'inbox', 'blocklist', 'audit', 'processed'].includes(this.t) && !row.at) row.at = ts(); return row; }
+  _fill(r) { const row = { ...(DEFAULTS[this.t] || {}), ...JSON.parse(JSON.stringify(r)) }; if (PK[this.t] === undefined && !row.id) row.id = crypto.randomUUID(); if (this.t === 'audit' && !row.id) row.id = this.db.audit.length + 1; if (!row.created_at) row.created_at = ts(); if (this.t === 'finder_jobs' && !row.next_try_at) row.next_try_at = new Date(Date.now() - 1000).toISOString(); if (['sends', 'inbox', 'blocklist', 'audit', 'processed'].includes(this.t) && !row.at) row.at = ts(); return row; }
   async _run() {
     const T = this.db[this.t]; if (!T) return { data: null, error: { message: 'unknown table ' + this.t } };
     if (this.op === 'insert' || this.op === 'upsert') {
@@ -81,7 +82,7 @@ class Query {
   }
   _cascade(rows) {
     const ids = new Set(rows.map(r => r.id));
-    const map = { workspaces: [['members', 'ws_id'], ['accounts', 'ws_id'], ['lists', 'ws_id'], ['leads', 'ws_id'], ['campaigns', 'ws_id'], ['templates', 'ws_id'], ['blocklist', 'ws_id']], lists: [['leads', 'list_id']], leads: [['enrollments', 'lead_id']], campaigns: [['enrollments', 'campaign_id'], ['sends', 'campaign_id']] };
+    const map = { workspaces: [['members', 'ws_id'], ['accounts', 'ws_id'], ['lists', 'ws_id'], ['leads', 'ws_id'], ['campaigns', 'ws_id'], ['templates', 'ws_id'], ['blocklist', 'ws_id']], lists: [['leads', 'list_id']], finder_jobs: [['finder_results', 'job_id']], leads: [['enrollments', 'lead_id']], campaigns: [['enrollments', 'campaign_id'], ['sends', 'campaign_id']] };
     for (const [t, fk] of map[this.t] || []) { const gone = this.db[t].filter(x => ids.has(x[fk])); this.db[t] = this.db[t].filter(x => !ids.has(x[fk])); if (gone.length) new Query(this.db, t)._cascade(gone); }
     if (this.t === 'accounts') { for (const e of this.db.enrollments) if (ids.has(e.account_id)) e.account_id = null; }
   }
