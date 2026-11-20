@@ -54,6 +54,17 @@ const ok = (name, cond) => { console.log((cond ? '  ✓ ' : '  ✗ ') + name); i
   ok(`4 Mails verschickt (Warm-up-Limit 6)`, sink.length === 4);
   r = await call('GET', '/api/live'); ok('Live-Versand: 4 gesendet sichtbar', r.j.ok && r.j.sentToday === 4 && r.j.sent.length === 4 && r.j.sent[0].lead && r.j.sent[0].subject.length > 0);
   ok('Live-Versand: nächster Versand geplant', Array.isArray(r.j.next) && r.j.next.length > 0);
+  // Signatur + Testmail als HTML
+  r = await call('POST', '/api/signature', { html: '<b>{Name}</b><br>Astravagand<script>alert(1)</script><img src="https://astravagand.com/logo.png" onerror="x()">' });
+  ok('Signatur gespeichert + bereinigt', r.j.ok && !/script|onerror/.test(r.j.html) && r.j.html.includes('<b>{Name}</b>'));
+  const before = sink.length; const stx = await call('GET', '/api/state'); const accId = (stx.j.accounts[0] || {}).id;
+  r = await call('POST', '/api/test-send', { accountId: accId, to: 'izy@astravagand.com', subject: '[TEST] Sig', text: 'Hallo\nTest' });
+  await new Promise(r => setTimeout(r, 300));
+  const tm = sink.slice(before).join('\n');
+  ok('Testmail mit HTML-Signatur', r.j.ok && /text\/html/i.test(tm) && tm.includes('Izy Sinani') && !/<script/i.test(tm));
+  r = await call('GET', '/api/ai'); ok('KI-Status ohne Key', r.j.ok && r.j.configured === false && r.j.usage.calls === 0);
+  r = await call('GET', '/api/ai/icebreakers'); ok('KI-Einstiege Status', r.j.ok && typeof r.j.withWebsite === 'number');
+  r = await call('POST', '/api/ai/icebreakers', {}); ok('KI-Einstiege ohne Key → 503 mit Hinweis', r.status === 503 && /OPENAI_KEY/.test(r.j.error));
   const g = sink.find(m => m.includes('office@glanzwerk.at')); ok('fehlender Vorname → „Sehr geehrte Damen und Herren,“', /Sehr geehrte Damen und Herren,\r?\n/.test(g)); ok('Fußzeile + List-Unsubscribe', g.includes('Abmelden') && /List-Unsubscribe/i.test(g));
   // Antwort
   const hub = fake.db.sends.find(s => fake.db.leads.find(l => l.id === s.lead_id).email === 'm.huber@huber-reinigung.at');

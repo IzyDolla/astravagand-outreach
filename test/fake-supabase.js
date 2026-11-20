@@ -11,7 +11,7 @@ const DEFAULTS = {
   enrollments: { step: 0, status: 'pending', history: [], errors: 0, refs: [], account_id: null, next_at: null }, sends: { test: false },
   inbox: { read: false }, finder_jobs: { status: 'queued', attempts: 0, total: 0, with_email: 0, with_phone: 0, with_website: 0, crawled: 0, error: null, center: null, claimed_at: null }, finder_results: { crawl_status: 'pending', emails: [], socials: {}, email: null, contact_first: null, imported_at: null, imported_list: null, claimed_at: null, phone: '', website: '' }, templates: { subject: '', body: '' }, members: { role: 'member' }
 };
-function makeDb() { return { workspaces: [], members: [], profiles: [], accounts: [], lists: [], leads: [], campaigns: [], enrollments: [], sends: [], inbox: [], blocklist: [], templates: [], processed: [], audit: [], allowed_signups: [], locks: [], finder_jobs: [], finder_results: [] }; }
+function makeDb() { return { workspaces: [], members: [], profiles: [], accounts: [], lists: [], leads: [], campaigns: [], enrollments: [], sends: [], inbox: [], blocklist: [], templates: [], processed: [], audit: [], allowed_signups: [], locks: [], finder_jobs: [], finder_results: [], ai_usage: [] }; }
 let clock = 0; const ts = () => new Date(Date.now() + (clock++)).toISOString();
 
 function parseSelect(sel) {
@@ -32,7 +32,7 @@ class Query {
   neq(c, v) { return this._f(r => this._get(r, c) !== v); }
   in(c, vs) { return this._f(r => vs.includes(this._get(r, c))); }
   is(c, v) { return this._f(r => (this._get(r, c) ?? null) === v); }
-  not(c, op, v) { return this._f(r => !((this._get(r, c) ?? null) === v)); }
+  not(c, op, v) { if (op === 'in') { const vs = String(v).replace(/^\(|\)$/g, '').split(',').map(x => x.replace(/^"|"$/g, '')); return this._f(r => !vs.includes(this._get(r, c))); } return this._f(r => !((this._get(r, c) ?? null) === v)); }
   lte(c, v) { return this._f(r => this._get(r, c) != null && this._get(r, c) <= v); }
   lt(c, v) { return this._f(r => this._get(r, c) != null && this._get(r, c) < v); }
   gte(c, v) { return this._f(r => this._get(r, c) != null && this._get(r, c) >= v); }
@@ -42,7 +42,7 @@ class Query {
   order(c, o = {}) { this._order.push([c, o.ascending !== false, o.nullsFirst]); return this; }
   limit(n) { this._limit = n; return this; }
   range(a, b) { this._range = [a, b]; return this; }
-  or(expr) { const parts = String(expr).split(',').map(x => { const [c, op, ...v] = x.split('.'); return [c, op, v.join('.')]; }); return this._f(r => parts.some(([c, op, v]) => op === 'ilike' && new RegExp('^' + v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*') + '$', 'i').test(String(this._get(r, c) ?? '')))); }
+  or(expr) { const parts = String(expr).split(',').map(x => { const [c, op, ...v] = x.split('.'); return [c, op, v.join('.')]; }); return this._f(r => parts.some(([c, op, v]) => op === 'is' ? (this._get(r, c) ?? null) === (v === 'null' ? null : v) : op === 'eq' ? String(this._get(r, c) ?? '') === v : op === 'ilike' && new RegExp('^' + v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*') + '$', 'i').test(String(this._get(r, c) ?? '')))); }
   maybeSingle() { this._single = 'maybe'; return this; }
   single() { this._single = 'one'; return this; }
   _match(r) { return this.filters.every(f => f(r)); }

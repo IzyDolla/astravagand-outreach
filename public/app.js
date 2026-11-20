@@ -47,12 +47,12 @@ const dt=s=>{if(!s)return'';const d=new Date(s);return d.toLocaleDateString('de-
 const dday=s=>s?new Date(s).toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit'}):'';
 const when=s=>{if(!s)return'';const d=new Date(s),n=new Date();if(d.toDateString()===n.toDateString())return d.toLocaleTimeString('de-AT',{hour:'2-digit',minute:'2-digit'});const y=new Date(n-864e5);if(d.toDateString()===y.toDateString())return'Gestern';return d.toLocaleDateString('de-AT',{day:'2-digit',month:'2-digit'})};
 const hue=s=>{let h=0;for(const c of String(s))h=(h*31+c.charCodeAt(0))%360;return h};
-const av=(name,size=42)=>`<div class="avatar" style="width:${size}px;height:${size}px;font-size:${Math.round(size/3)}px;background:linear-gradient(135deg,hsl(${hue(name)} 70% 55%),hsl(${(hue(name)+40)%360} 75% 65%))">${esc(String(name||'?').split(/[\s@.]+/).filter(Boolean).map(x=>x[0]).join('').slice(0,2).toUpperCase())}</div>`;
+const av=(name,size=42)=>`<div class="avatar" style="width:${size}px;height:${size}px;font-size:${Math.round(size/3)}px;--h:${hue(name)}">${esc(String(name||'?').split(/[\s@.]+/).filter(Boolean).map(x=>x[0]).join('').slice(0,2).toUpperCase())}</div>`;
 const fullName=l=>[l.first,l.last].filter(Boolean).join(' ');
 function toast(msg,kind='good'){const t=document.createElement('div');t.className='toast';t.innerHTML=`<span class="dot ${kind}"></span><span>${msg}</span>`;$('#toasts').appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s'},3200);setTimeout(()=>t.remove(),3600)}
 const warmLimit=d=>d<=7?Math.round(5+d*0.7):d<=14?Math.round(10+(d-7)*1.4):d<=21?Math.round(20+(d-14)*1.4):40;
 const SPAM=['kostenlos','gratis','garantiert','100%','100 %','jetzt kaufen','gewinn','dringend','!!!','risikofrei','billig','sofort zugreifen'];
-const VARS=['Anrede','Vorname','Nachname','Firma','Stadt','Branche','Absender'];
+const VARS=['Anrede','Einstieg','Vorname','Nachname','Firma','Stadt','Branche','Absender'];
 const GREET_RE=/^[ \t]*(?:Hallo|Hi|Hey|Servus|Guten Tag|Guten Morgen|Grüß Gott|Grüezi|Liebe[rs]?|Sehr geehrte[rs]?(?:\s+(?:Herr|Frau))?)\s+\{Vorname\}(?:\s+\{Nachname\})?[ \t]*[,!]?/gim;
 const debounce=(fn,ms)=>{let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms)}};
 const spinner='<span class="spin" style="border-color:var(--border2);border-top-color:var(--violet2)"></span>';
@@ -113,22 +113,15 @@ V.overview=()=>{
   if(a.dns&&!(a.dns.spf&&a.dns.dkim&&a.dns.dmarc))alerts.push(['warn','shield',`${['spf','dkim','dmarc'].filter(x=>!a.dns[x]).map(x=>x.toUpperCase()).join(', ')} fehlt bei ${a.email.split('@')[1]}`,'Ohne diese Einträge landen mehr Mails im Spam','Anleitung','accounts'])});
  C.campaigns.filter(c=>c.status==='paused').forEach(c=>alerts.push(['warn','pause',`„${c.name}“ ist pausiert`,'Es wird nichts verschickt','Öffnen','camp:'+c.id]));
  const uniq=[...new Map(alerts.map(a=>[a[2],a])).values()];
- return `<div class="wrap"><div class="page-head"><div><h1>${greet}${C.accounts[0]?.name?', '+esc(C.accounts[0].name.split(' ')[0]):''}</h1><p>${new Date().toLocaleDateString('de-AT',{weekday:'long',day:'numeric',month:'long'})} · ${active.length} Kampagne${active.length===1?'':'n'} aktiv · ${okAccounts().length} Konten bereit</p></div>
+ return `<div class="wrap"><div class="page-head"><div><h1>${greet}${C.accounts[0]?.name?', '+esc(C.accounts[0].name.split(' ')[0]):''}</h1><p>${new Date().toLocaleDateString('de-AT',{weekday:'long',day:'numeric',month:'long'})}. ${active.length?`${active.length} Kampagne${active.length===1?'':'n'} aktiv, ${okAccounts().length} Konten bereit.`:'Gerade läuft keine Kampagne.'}</p></div>
  <div class="row gap"><button class="btn ghost" data-act="lesson">${ic('flame')}Warum so wenige Mails?</button><button class="btn primary" data-act="newCampaign">${ic('plus',2.2)}Neue Kampagne</button></div></div>
  ${done<8?`<div class="card onb" data-tour="checklist"><div class="onb-top"><div><h3>Einrichtung abschließen</h3><p class="muted" style="font-size:13px">Noch ${8-done} Schritte bis zur ersten Kampagne. Jeder Schritt bringt dich direkt an die richtige Stelle.</p></div><div class="row gap"><span style="font-weight:700">${done} von 8</span><div class="onb-bar"><i style="width:${done/8*100}%"></i></div></div></div>
  <div class="steps">${items.map((it,i)=>`<div class="step ${ck[i]?'done':i===nextIdx?'next':''}" data-act="onbStep" data-to="${it[2]}"><div class="ck">${ck[i]?ics('check',12,3):i+1}</div><div><strong>${it[0]}</strong><span>${it[1]}</span></div></div>`).join('')}</div></div>`:''}
- <div class="grid g4 mt" data-tour="kpis">
-  ${kpi('Gesendet heute',`${k.sentToday}<small> / ${k.capacity}</small>`,k.capacity?`${Math.round(k.sentToday/k.capacity*100)} % der Tageskapazität`:'Noch kein Konto bereit','',C.chart.map(d=>d.sent),true)}
-  ${kpi('Antwortrate (7 Tage)',`${num(k.replyRate7)}<small> %</small>`,`${k.replies7} Antworten auf Erstmails`,'',C.chart.map(d=>d.rep))}
-  ${kpi('Positive Antworten',`${k.positive7}`,k.positive7>=k.positivePrev?`▲ ${k.positive7-k.positivePrev} ggü. Vorwoche`:`▼ ${k.positivePrev-k.positive7} ggü. Vorwoche`,k.positive7>=k.positivePrev?'up':'down',C.chart.map(d=>d.rep))}
-  ${kpi('Bounce-Rate',`${num(k.bounceRate)}<small> %</small>`,k.bounceRate>3?'Zu hoch – Liste prüfen':'Gut – Grenze liegt bei 3 %',k.bounceRate>3?'down':'up',C.chart.map(d=>d.sent))}
- </div>
+ <section class="today mt" id="todayBand" data-tour="kpis">${todayInner()}</section>
  <div class="grid g-main mt">
-  <div class="card"><div class="card-h"><h3>Versand & Antworten · letzte 30 Tage</h3><div class="chart-legend"><span><i style="background:var(--violet)"></i>Gesendet</span><span><i style="background:var(--peach)"></i>Antworten</span></div></div><div class="card-b">${k.totalSent?chart(C.chart):`<div class="empty" style="padding:60px 20px">${ics('send',28)}<p style="margin-top:10px">Noch nichts verschickt. Sobald deine erste Kampagne läuft, siehst du hier den Verlauf.</p></div>`}</div></div>
-  <div class="card" data-tour="capacity"><div class="card-h"><h3>Kapazität heute</h3><button class="btn sm ghost" data-act="go" data-view="accounts">Konten</button></div><div class="card-b">
-  ${C.accounts.length?`<div class="row" style="justify-content:space-between;align-items:baseline"><span style="font-size:28px;font-weight:700;letter-spacing:-.02em">${k.sentToday}<span class="muted" style="font-size:15px"> / ${k.capacity}</span></span><span class="badge b-violet">${Math.max(0,k.capacity-k.sentToday)} übrig</span></div>
-   <div class="prog" style="height:8px;margin:10px 0 18px"><i style="width:${k.capacity?Math.min(100,k.sentToday/k.capacity*100):0}%"></i></div>
-   ${C.accounts.map(a=>`<div style="margin-bottom:12px"><div class="row" style="justify-content:space-between;font-size:12.5px;margin-bottom:5px;gap:8px"><span class="row gap-s" style="min-width:0"><span class="dot ${a.status!=='ok'?'bad':a.warmup&&a.day<28?'warn':'good'}"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.email)}</span></span><span class="muted" style="flex:none">${a.status!=='ok'?(a.status==='paused'?'Pausiert':'Fehler'):a.sentToday+' / '+a.limit}</span></div><div class="prog ${a.status!=='ok'?'bad':''}"><i style="width:${a.limit?Math.min(100,a.sentToday/a.limit*100):100}%"></i></div></div>`).join('')}
+  <div class="card"><div class="card-h"><h3>Letzte 30 Tage</h3><div class="chart-legend"><span><i style="background:var(--s-sent)"></i>Gesendet</span><span><i style="background:var(--s-rep)"></i>Antworten</span></div></div><div class="card-b">${k.totalSent?chart2(C.chart):`<div class="empty" style="padding:60px 20px">${ics('send',28)}<p style="margin-top:10px">Noch nichts verschickt. Sobald deine erste Kampagne läuft, siehst du hier den Verlauf.</p></div>`}</div></div>
+  <div class="card" data-tour="capacity"><div class="card-h"><h3>Konten heute</h3><button class="btn sm ghost" data-act="go" data-view="accounts">Verwalten</button></div><div class="card-b">
+  ${C.accounts.length?`${C.accounts.map(a=>`<div style="margin-bottom:12px"><div class="row" style="justify-content:space-between;font-size:12.5px;margin-bottom:5px;gap:8px"><span class="row gap-s" style="min-width:0"><span class="dot ${a.status!=='ok'?'bad':a.warmup&&a.day<28?'warn':'good'}"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.email)}</span></span><span class="muted" style="flex:none">${a.status!=='ok'?(a.status==='paused'?'Pausiert':'Fehler'):a.sentToday+' / '+a.limit}</span></div><div class="prog ${a.status!=='ok'?'bad':''}"><i style="width:${a.limit?Math.min(100,a.sentToday/a.limit*100):100}%"></i></div></div>`).join('')}
    ${C.accounts.some(a=>a.warmup&&a.day<28)?`<div class="callout" style="margin-top:14px">${ic('info')}<div>${C.accounts.filter(a=>a.warmup&&a.day<28).length} Konto/Konten noch im Warm-up. Danach schaffst du ca. <b>${okAccounts().reduce((s,a)=>s+a.maxPerDay,0)} Mails</b> pro Tag.</div></div>`:''}`
   :`<div class="empty">${ics('mail',26)}<p style="margin:10px 0 14px">Noch kein E-Mail-Konto verbunden.</p><button class="btn primary sm" data-act="connect">${ic('plus',2)}Konto verbinden</button></div>`}
   </div></div></div>
@@ -161,10 +154,76 @@ function liveInner(prevTop){
 }
 async function loadLive(force){
  if(liveBusy||(!force&&Date.now()-liveAt<8000)||S.view!=='overview')return;liveBusy=true;
- try{const j=await get('/api/live');if(j&&j.ok){const prevTop=LIVE&&LIVE.sent[0]?LIVE.sent[0].id:null;const changed=LIVE&&j.sentToday!==LIVE.sentToday;LIVE=j;liveAt=Date.now();const el=$('#liveCard');if(el)el.innerHTML=liveInner(prevTop);
+ try{const j=await get('/api/live');if(j&&j.ok){const prevTop=LIVE&&LIVE.sent[0]?LIVE.sent[0].id:null;const changed=LIVE&&j.sentToday!==LIVE.sentToday;LIVE=j;liveAt=Date.now();const el=$('#liveCard');if(el)el.innerHTML=liveInner(prevTop);const tb=$('#todayBand');if(tb)tb.innerHTML=todayInner();
   if(changed&&C&&j.sentToday!==C.kpi.sentToday&&!modalOpen()&&!document.activeElement?.matches('input,textarea,select'))refresh(true)}}catch(e){}finally{liveBusy=false}
 }
-setInterval(()=>{if(document.hidden||S.view!=='overview'||!$('#liveCard'))return;document.querySelectorAll('#liveCard [data-cd]').forEach(el=>{if(el.dataset.cd)el.textContent=lvWhen(el.dataset.cd)});if(Date.now()-liveAt>15000)loadLive()},1000);
+setInterval(()=>{if(document.hidden||S.view!=='overview'||!$('#liveCard'))return;document.querySelectorAll('#liveCard [data-cd],#todayBand [data-cd]').forEach(el=>{if(el.dataset.cd)el.textContent=lvWhen(el.dataset.cd)});if(Date.now()-liveAt>15000)loadLive()},1000);
+/* ---------- Heute-Band ---------- */
+const hm2h=v=>{const[a,b]=String(v).split(':').map(Number);return a+(b||0)/60};
+const tipA=html=>esc(html);
+function dayline(L){
+ if(!L||!L.day)return `<div class="dl dl-empty"><div class="dl-track"></div></div>`;
+ const start=new Date(L.day.start).getTime(),now=Date.now(),hOf=t=>(new Date(t).getTime()-start)/3600e3;
+ const times=L.day.times.map(hOf).filter(h=>h>=0&&h<=24);
+ const plan=L.next.filter(n=>n.at).map(n=>({h:hOf(n.at),n})).filter(p=>p.h>=0&&p.h<24);
+ const wins=L.day.windows.map(w=>({a:hm2h(w.from),b:hm2h(w.to),name:w.name}));
+ const nowH=Math.min(24,Math.max(0,hOf(now)));
+ let lo=Math.min(nowH,...times,...wins.map(w=>w.a),...plan.map(p=>p.h)),hi=Math.max(nowH,...times,...wins.map(w=>w.b),...plan.map(p=>p.h));
+ lo=Math.max(0,Math.floor(lo)-1);hi=Math.min(24,Math.ceil(hi)+1);if(hi-lo<8){lo=Math.max(0,Math.min(lo,16));hi=Math.min(24,lo+8)}
+ const span=hi-lo,x=h=>((h-lo)/span*100).toFixed(3),step=span<=10?1:span<=16?2:3;
+ const ticks=[];for(let h=Math.ceil(lo);h<=hi;h+=step)ticks.push(`<span class="dl-tick" style="left:${x(h)}%">${String(h%24).padStart(2,'0')}:00</span>`);
+ const merged=[];wins.sort((a,b)=>a.a-b.a).forEach(w=>{const m=merged[merged.length-1];if(m&&w.a<=m.b){m.b=Math.max(m.b,w.b);m.names.add(w.name)}else merged.push({a:w.a,b:w.b,names:new Set([w.name])})});
+ const winHtml=merged.map(w=>`<div class="dl-win" style="left:${x(Math.max(lo,w.a))}%;width:${(Math.min(hi,w.b)-Math.max(lo,w.a))/span*100}%" data-tip="${tipA(`<b>Versandfenster ${String(Math.floor(w.a)).padStart(2,'0')}:${String(Math.round(w.a%1*60)).padStart(2,'0')}–${w.b>=24?'24:00':String(Math.floor(w.b)).padStart(2,'0')+':'+String(Math.round(w.b%1*60)).padStart(2,'0')}</b><br>${[...w.names].map(esc).join('<br>')}`)}"></div>`).join('');
+ const res=Math.max(6,span*4),buckets=new Map();times.forEach(h=>{const k=Math.round((h-lo)/span*res);if(!buckets.has(k))buckets.set(k,[]);buckets.get(k).push(h)});
+ const fmtH=h=>{const t=new Date(start+h*3600e3);return t.toLocaleTimeString('de-AT',{hour:'2-digit',minute:'2-digit'})};
+ const dots=[...buckets.entries()].map(([k,hs])=>{const c=hs.length,shown=Math.min(c,4);return `<div class="dl-b" style="left:${(k/res*100).toFixed(3)}%" data-tip="${tipA(`<b>${c} Mail${c>1?'s':''} gesendet</b><br>${fmtH(Math.min(...hs))}${c>1&&fmtH(Math.max(...hs))!==fmtH(Math.min(...hs))?'–'+fmtH(Math.max(...hs)):''} Uhr`)}">${'<i class="dl-dot"></i>'.repeat(shown)}${c>4?`<em>+${c-4}</em>`:''}</div>`}).join('');
+ const plans=plan.map(p=>`<i class="dl-plan" style="left:${x(p.h)}%" data-tip="${tipA(`<b>Geplant ca. ${fmtH(p.h)} Uhr</b><br>${esc(p.n.account)}${p.n.lead?' → '+esc(lvLead(p.n.lead)):''}${p.n.step?'<br>'+esc(p.n.step):''}`)}"></i>`).join('');
+ return `<div class="dl" role="img" aria-label="Versand heute: ${times.length} Mails gesendet, ${plan.length} geplant"><div class="dl-track"></div>${winHtml}${dots}${plans}<div class="dl-now" style="left:${x(nowH)}%"><span>Jetzt</span></div>${ticks.join('')}</div>`;
+}
+function todayInner(){
+ const k=C.kpi,L=LIVE,sent=L?L.sentToday:k.sentToday,cap=k.capacity;
+ const act=C.campaigns.filter(c=>c.status==='active'),paused=C.campaigns.filter(c=>c.status==='paused');
+ let st;
+ if(!act.length)st=['idle','Kein Versand aktiv',paused.length?`${paused.length} Kampagne${paused.length>1?'n':''} pausiert`:'Starte eine Kampagne, um zu senden'];
+ else if(L){const n=L.next.filter(x=>x.at).sort((a,b)=>a.at<b.at?-1:1)[0];
+  if(!n)st=['idle','Nichts mehr geplant','Alle Leads sind durch'];
+  else{const soon=new Date(n.at)-Date.now()<=90e3;st=[soon||n.why==='gap'||n.why==='now'||n.why==='followup'?'on':'wait',soon||n.why==='gap'||n.why==='now'||n.why==='followup'?'Versand läuft':n.why==='window'?'Außerhalb der Versandzeit':n.why==='limit'?'Tageslimit erreicht':'Pause',`Nächste Mail <b data-cd="${n.at}">${lvWhen(n.at)}</b>`]}}
+ else st=['on','Versand aktiv',''];
+ const pend=L?L.active.reduce((s,c)=>s+c.pending,0):null,f=L?L.followups:null;
+ const pos=k.positive7-k.positivePrev;
+ const m=[['Antwortrate, 7 Tage',`${num(k.replyRate7)}<small> %</small>`,`${k.replies7} Antwort${k.replies7===1?'':'en'} auf Mail 1`],
+  ['Positive Antworten',`${k.positive7}`,pos>0?`<span class="up">${pos} mehr als Vorwoche</span>`:pos<0?`<span class="down">${-pos} weniger als Vorwoche</span>`:'wie in der Vorwoche'],
+  ['Bounce-Rate',`${num(k.bounceRate)}<small> %</small>`,k.bounceRate>3?`<span class="down">${ics('alert',12)} Zu hoch, Liste prüfen</span>`:`<span class="up">${ics('check',12,2.4)} Gut, Grenze 3 %</span>`],
+  ['Warten auf Mail 1',pend==null?'–':fmt(pend),act.length?'neue Leads in aktiven Kampagnen':'keine aktive Kampagne'],
+  ['Follow-ups geplant',f?fmt(f.count):'–',f&&f.next?'nächstes '+lvDay(f.next)+', '+lvHm(f.next):'keine offen']];
+ return `<div class="today-top"><div><div class="today-num"><b class="tnum">${sent}</b><span>/ ${cap}</span></div><div class="today-lbl">Mails heute gesendet${cap?`, ${Math.round(sent/cap*100)} % der Tageskapazität`:''}</div></div>
+ <div class="today-state"><span class="st ${st[0]}"><i></i>${st[1]}</span>${st[2]?`<small>${st[2]}</small>`:''}</div></div>
+ ${dayline(L)}
+ <div class="today-legend"><span><i class="dl-dot"></i>gesendet</span><span><i class="dl-plan-l"></i>geplant</span><span><i class="dl-win-l"></i>Versandfenster</span></div>
+ <div class="today-metrics">${m.map(([l,v,sub])=>`<div class="tm"><div class="l">${l}</div><div class="v tnum">${v}</div><div class="s">${sub}</div></div>`).join('')}</div>`;
+}
+/* ---------- 30-Tage-Diagramm (zwei Reihen, gemeinsame Zeitachse) ---------- */
+const niceMax=v=>{if(v<=4)return 4;if(v<=6)return 6;if(v<=8)return 8;const p=Math.pow(10,Math.floor(Math.log10(v)));const f=v/p;return(f<=1?1:f<=2?2:f<=5?5:10)*p};
+const barPath=(x,y,w,h,r)=>{if(h<=0)return'';r=Math.min(r,w/2,h);return `M${x},${y+h}V${y+r}Q${x},${y} ${x+r},${y}H${x+w-r}Q${x+w},${y} ${x+w},${y+r}V${y+h}Z`};
+function chart2(days){
+ const W=720,pl=34,H1=150,H2=70,n=days.length,bw=(W-pl)/n,g=Math.max(2,bw*.26),w=bw-g;
+ const m1=niceMax(Math.max(...days.map(d=>d.sent),1)),m2=niceMax(Math.max(...days.map(d=>d.rep),1));
+ const dl=d=>new Date(d.k+'T12:00:00').toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit'});
+ const tip=d=>tipA(`<b>${dl(d)}</b><br>${d.sent} gesendet<br>${d.rep} Antwort${d.rep===1?'':'en'}`);
+ const panel=(H,max,key,col,label,top)=>{const y=v=>top+H-v/max*(H-14);
+  const grid=[0,max/2,max].filter(v=>v%1===0).map(v=>`<line x1="${pl}" x2="${W}" y1="${y(v)}" y2="${y(v)}" stroke="var(--border)"/><text x="${pl-8}" y="${y(v)+3.5}" font-size="10.5" fill="var(--faint)" text-anchor="end">${v%1?num(v):v}</text>`).join('');
+  const bars=days.map((d,i)=>barPath(pl+i*bw+g/2,y(d[key]),w,top+H-y(d[key]),4)).filter(Boolean).map(p=>`<path d="${p}" fill="${col}"/>`).join('');
+  return `${grid}<text x="${pl}" y="${top-6}" font-size="11.5" fill="var(--muted)" font-weight="600">${label}</text>${bars}`};
+ const H=20+H1+34+H2+22;
+ const hits=days.map((d,i)=>`<rect class="hit" x="${pl+i*bw}" y="0" width="${bw}" height="${H-18}" data-tip="${tip(d)}"/>`).join('');
+ const labels=[0,7,14,21,n-1].map(i=>`<text x="${pl+i*bw+bw/2}" y="${H-4}" font-size="10.5" fill="var(--faint)" text-anchor="middle">${i===n-1?'Heute':days[i].k.slice(8)+'.'+days[i].k.slice(5,7)+'.'}</text>`).join('');
+ return `<svg class="ch" viewBox="0 0 ${W} ${H}" role="img" aria-label="Gesendete Mails und Antworten der letzten 30 Tage">${hits}${panel(H1,m1,'sent','var(--s-sent)','Gesendet',20)}${panel(H2,m2,'rep','var(--s-rep)','Antworten',20+H1+34)}${labels}</svg>`;
+}
+/* ---------- Tooltip ---------- */
+(()=>{const t=document.createElement('div');t.id='tip';t.setAttribute('role','tooltip');document.body.appendChild(t);let cur=null;
+ const pos=e=>{const r=t.getBoundingClientRect();let x=e.clientX+14,y=e.clientY+14;if(x+r.width>innerWidth-8)x=e.clientX-r.width-14;if(y+r.height>innerHeight-8)y=e.clientY-r.height-14;t.style.left=x+'px';t.style.top=y+'px'};
+ document.addEventListener('mouseover',e=>{const el=e.target.closest&&e.target.closest('[data-tip]');if(el===cur)return;cur=el;if(!el){t.classList.remove('on');return}t.innerHTML=el.getAttribute('data-tip');t.classList.add('on');pos(e)});
+ document.addEventListener('mousemove',e=>{if(cur)pos(e)});document.addEventListener('scroll',()=>{cur=null;t.classList.remove('on')},true);})();
 function kpi(l,v,d,cls,series,hero){const show=series.filter(x=>x>0).length>=3;series=series.length?series:[0,0];const max=Math.max(...series,1),min=Math.min(...series);const pts=series.map((y,i)=>`${(i/(series.length-1)*80).toFixed(1)},${(28-(y-min)/((max-min)||1)*24).toFixed(1)}`).join(' ');
  return `<div class="card kpi ${hero?'hero':''}"><div class="lbl">${l}</div><div class="val">${v}</div><div class="delta ${cls}">${d}</div>${show?'':'<!--'}<svg class="spark" viewBox="0 0 80 30"><polyline points="${pts}" fill="none" stroke="${hero?'var(--peach)':'var(--violet2)'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/></svg>${show?'':'-->'}</div>`}
 function alertRow(k,i,t,s,b,v){const col=k==='bad'?'var(--bad)':'var(--warn)';const act=v.startsWith('camp:')?`data-act="openCamp" data-id="${v.slice(5)}"`:`data-act="go" data-view="${v}"`;return `<div class="alert"><div class="ic" style="background:${k==='bad'?'rgba(248,113,113,.12)':'rgba(251,191,36,.12)'};color:${col}">${ic(i)}</div><div style="min-width:0"><strong>${esc(t)}</strong><span>${esc(s)}</span></div><button class="btn sm" ${act}>${b}</button></div>`}
@@ -204,8 +263,8 @@ function campDetail(){
 async function loadPrevLeads(c){const j=await get(`/api/campaigns/${c.id}/leads`);if(j.ok){S.prevLeads=j.rows.map(r=>r.lead).slice(0,50);S.campRows=j;if(S.view==='campaigns'&&S.camp===c.id){if(S.campTab==='leads')render();else refreshPreview(true)}}}
 const curLead=()=>S.prevLeads[S.prevIdx]||SAMPLE;
 const sender=()=>{const c=camp();const a=c&&accById(c.accounts[0]);return a||{name:C.accounts[0]?.name||'Dein Name',email:C.accounts[0]?.email||'du@firma.com'}};
-function renderVars(t,lead,html=true){const f=String(lead.first||'').trim();const map={Anrede:f?'Guten Tag '+[f,String(lead.last||'').trim()].filter(Boolean).join(' '):'Sehr geehrte Damen und Herren',Vorname:lead.first,Nachname:lead.last,Firma:lead.company,Stadt:lead.city,Branche:lead.industry,Absender:sender().name};
- let s=String(t||'');if(!f)s=s.replace(GREET_RE,'Sehr geehrte Damen und Herren,');if(!String(lead.last||'').trim())s=s.replace(/^[ \t]*Sehr geehrte[rs]?\s+(?:Herr|Frau)\s+\{Nachname\}[ \t]*,?/gim,'Sehr geehrte Damen und Herren,');
+function renderVars(t,lead,html=true){const f=String(lead.first||'').trim();const map={Anrede:f?'Guten Tag '+[f,String(lead.last||'').trim()].filter(Boolean).join(' '):'Sehr geehrte Damen und Herren',Vorname:lead.first,Nachname:lead.last,Firma:lead.company,Stadt:lead.city,Branche:lead.industry,Absender:sender().name,Einstieg:lead.icebreaker};
+ let s=String(t||'');const ice=!!String(lead.icebreaker||'').trim();s=s.replace(/^([ \t]*\{Einstieg\}[ \t]*\r?\n[ \t]*\r?\n)([a-zäöü])/gm,(m,a,c)=>ice?a+c.toUpperCase():m).replace(/^[ \t]*\{Einstieg\}[ \t]*\r?\n(?:[ \t]*\r?\n)?/gm,m=>ice?m:'');if(!f)s=s.replace(GREET_RE,'Sehr geehrte Damen und Herren,');if(!String(lead.last||'').trim())s=s.replace(/^[ \t]*Sehr geehrte[rs]?\s+(?:Herr|Frau)\s+\{Nachname\}[ \t]*,?/gim,'Sehr geehrte Damen und Herren,');
  if(!html)return s.replace(/ \{(\w+)\}(?=[,.!?:;]|\s|$)/g,(m,k)=>map[k]?' '+map[k]:'').replace(/\{(\w+)\}/g,(m,k)=>map[k]||'');
  return esc(s).replace(/\{(\w+)\}/g,(m,k)=>map[k]?`<mark>${esc(map[k])}</mark>`:`<mark class="miss">{${k} leer}</mark>`)}
 function seqEditor(c){
@@ -220,7 +279,7 @@ function seqEditor(c){
   <div class="tl-end">${ic('shield')}Antwort, Bounce oder Abmeldung stoppt die Sequenz sofort.</div></div>
  <div class="card" style="padding:20px">
   <div class="editor-tools"><div class="row gap"><h3 style="font-size:16px">${S.step===0?'Mail 1':'Follow-up '+S.step}</h3>${S.step>0?`<span class="muted" style="font-size:12.5px">${st.wait} Werktage nach Schritt ${S.step}, nur ohne Antwort</span>`:''}</div>
-  <div class="row gap-s"><button class="btn sm" data-act="loadTpl">${ic('file')}Aus Vorlage laden</button><button class="btn sm" data-act="saveTpl">${ic('copy')}Als Vorlage speichern</button>${S.step>0?`<button class="btn sm ghost danger" data-act="delStep" title="Schritt löschen">${ic('trash')}</button>`:''}</div></div>
+  <div class="row gap-s"><button class="btn sm ai-btn" data-act="aiRewrite">${ic('sparkle')}Umschreiben</button><button class="btn sm ai-btn" data-act="aiSeq" data-t="camp" title="Ganze Sequenz neu mit KI schreiben">${ic('sparkle')}Sequenz mit KI</button><button class="btn sm" data-act="loadTpl">${ic('file')}Aus Vorlage laden</button><button class="btn sm" data-act="saveTpl">${ic('copy')}Als Vorlage speichern</button>${S.step>0?`<button class="btn sm ghost danger" data-act="delStep" title="Schritt löschen">${ic('trash')}</button>`:''}</div></div>
   ${S.step>0?`<div class="row gap" style="margin-bottom:14px;flex-wrap:wrap"><div class="toggle ${st.thread?'on':''}" data-act="toggleThread"><span class="sw"></span>Im selben Verlauf antworten (Re: …)</div><div class="row gap-s" style="margin-left:auto"><span class="muted" style="font-size:12.5px">Warten:</span><input class="input" type="number" min="1" max="60" value="${st.wait}" data-bind="wait" style="width:70px;padding:7px 10px"><span class="muted" style="font-size:12.5px">Werktage</span></div></div>`:''}
   <div class="field"><label>Betreff</label><input class="input" data-bind="subject" value="${esc(subj)}" ${st.thread&&S.step>0?'disabled style="opacity:.6"':''} placeholder="z. B. Kurze Frage zu {Firma}">${st.thread&&S.step>0?'<span class="hint">Follow-ups im selben Verlauf übernehmen den Betreff von Mail 1 – das wirkt persönlicher und bringt meist mehr Antworten.</span>':''}</div>
   <div class="field"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><label>Text</label><div class="chips" data-tour="vars">${VARS.map(v=>`<span class="chip" data-act="insVar" data-v="${v}">{${v}}</span>`).join('')}</div></div><textarea class="textarea" id="bodyTa" data-bind="body">${esc(st.body)}</textarea><span class="hint">Fehlt der Ansprechpartner, wird aus „{Anrede},“ bzw. „Hallo {Vorname},“ automatisch „Sehr geehrte Damen und Herren,“.</span></div>
@@ -230,14 +289,14 @@ function seqEditor(c){
   </div></div></div>`;
 }
 function previewHtml(){const st=S.edit[S.step];const lead=curLead();const subj=st.thread&&S.step>0?'Re: '+S.edit[0].subject:st.subject;const sd=sender();
- return `<div class="preview-h"><span>Von</span><b>${esc(sd.name)} &lt;${esc(sd.email)}&gt;</b><span>An</span><b>${esc(lead.email||'—')}</b><span>Betreff</span><b>${renderVars(subj,lead)}</b></div><div class="preview-b">${renderVars(st.body,lead)}</div><div class="preview-f" style="white-space:pre-wrap">--\n${esc(C.settings.footer)}</div>`}
+ return `<div class="preview-h"><span>Von</span><b>${esc(sd.name)} &lt;${esc(sd.email)}&gt;</b><span>An</span><b>${esc(lead.email||'—')}</b><span>Betreff</span><b>${renderVars(subj,lead)}</b></div><div class="preview-b">${renderVars(st.body,lead)}</div>${sigOf(sd)?`<div class="preview-sig">${sigOf(sd)}</div>`:''}<div class="preview-f" style="white-space:pre-wrap">--\n${esc(C.settings.footer)}</div>`}
 function qcheck(){
  const st=S.edit[S.step],lead=curLead();const txt=(st.thread&&S.step>0?'':st.subject)+' '+st.body;const spam=SPAM.filter(w=>txt.toLowerCase().includes(w));const words=st.body.trim()?st.body.trim().split(/\s+/).length:0;const links=(st.body.match(/https?:\/\//g)||[]).length;
- const map={Anrede:1,Vorname:lead.first,Nachname:lead.last,Firma:lead.company,Stadt:lead.city,Branche:lead.industry,Absender:sender().name};const missing=[...new Set([...txt.matchAll(/\{(\w+)\}/g)].map(m=>m[1]).filter(k=>!map[k]))];
+ const map={Anrede:1,Einstieg:1,Vorname:lead.first,Nachname:lead.last,Firma:lead.company,Stadt:lead.city,Branche:lead.industry,Absender:sender().name};const missing=[...new Set([...txt.matchAll(/\{(\w+)\}/g)].map(m=>m[1]).filter(k=>!map[k]))];
  const rows=[[spam.length?'no':'ok',spam.length?`Spam-Wörter: <b>${spam.join(', ')}</b>`:'Keine Spam-Wörter'],[!words?'no':words>150?'wa':'ok',!words?'Text fehlt':words>150?`${words} Wörter – kürzer ist besser (unter 120)`:`${words} Wörter – gute Länge`],
   [links>1?'wa':'ok',links>1?`${links} Links – max. 1 Link empfohlen`:links?'1 Link – ok':'Keine Links – gut für die Zustellbarkeit'],[S.step===0&&!st.subject.trim()?'no':'ok',S.step===0&&!st.subject.trim()?'Betreff fehlt':'Betreff vorhanden'],
   [/\[Dein Angebot/.test(st.body)?'no':'ok',/\[Dein Angebot/.test(st.body)?'Platzhalter [Dein Angebot …] ersetzen':'Keine offenen Platzhalter'],
-  [missing.length?'wa':'ok',missing.length?`Beim gewählten Lead leer: <b>${missing.join(', ')}</b>`:'Alle Variablen befüllt'],['ok','Fußzeile mit Abmelde-Hinweis wird angehängt']];
+  [missing.length?'wa':'ok',missing.length?`Beim gewählten Lead leer: <b>${missing.join(', ')}</b>`:'Alle Variablen befüllt'],['ok','Fußzeile mit Abmelde-Hinweis wird angehängt'],...(/\{Einstieg\}/.test(st.body)?[[lead.icebreaker?'ok':'wa',lead.icebreaker?'KI-Einstieg für diesen Lead vorhanden':'Noch kein KI-Einstieg bei diesem Lead – die Zeile wird weggelassen']]:[]),...(sigOf(sender())?[['ok','Signatur wird angehängt']]:[])];
  return rows.map(([k,t])=>`<div class="checkrow"><span class="ci ${k}">${k==='ok'?'✓':k==='no'?'!':'–'}</span><span>${t}</span></div>`).join('')}
 function refreshPreview(full){const p=$('#preview');if(p)p.innerHTML=previewHtml();const q=$('#qcheck');if(q)q.innerHTML=qcheck();if(full&&S.campTab==='sequence'&&!document.activeElement?.matches('input,textarea'))render()}
 const saveSteps=debounce(async()=>{const c=camp();if(!c)return;const el=$('#saveState');if(el)el.textContent='Speichert …';const j=await patch(`/api/campaigns/${c.id}`,{steps:S.edit});if(j.ok){c.steps=JSON.parse(JSON.stringify(S.edit));const e=$('#saveState');if(e)e.innerHTML=`<span style="color:var(--good)">✓ Gespeichert</span>`}else toast(j.error,'bad')},700);
@@ -246,7 +305,7 @@ function progressLabel(r,steps){
  case'replied':return[`Geantwortet nach ${steps[r.repliedStep]||'Mail 1'}`,'b-good'];case'bounced':return['Bounce','b-bad'];case'unsub':return['Abgemeldet','b-bad'];case'stopped':return['Gestoppt','b-warn'];case'error':return['Fehler','b-bad'];default:return[r.status,'b-mute']}}
 function campLeads(c){
  const steps=c.steps.map((s,i)=>i===0?'Mail 1':'Follow-up '+i);const R=S.campRows;
- const listChips=`<div class="card" style="padding:14px 16px;margin-bottom:14px"><div class="row gap" style="flex-wrap:wrap"><b style="font-size:13px">Lead-Listen in dieser Kampagne:</b>${C.lists.length?C.lists.map(l=>`<span class="daychip ${c.lists.includes(l.id)?'on':''}" style="width:auto;padding:0 12px" data-act="toggleList" data-id="${l.id}">${esc(l.name)} · ${l.count}</span>`).join(''):`<span class="muted">Noch keine Listen – such dir Firmen mit dem Lead-Finder.</span>`}<button class="btn sm primary" style="margin-left:auto" data-act="go" data-view="finder">${ic('radar')}Lead-Finder</button><button class="btn sm" data-act="import">${ic('upload',2)}CSV importieren</button></div></div>`;
+ const listChips=`<div class="card" style="padding:14px 16px;margin-bottom:14px"><div class="row gap" style="flex-wrap:wrap"><b style="font-size:13px">Lead-Listen in dieser Kampagne:</b>${C.lists.length?C.lists.map(l=>`<span class="daychip ${c.lists.includes(l.id)?'on':''}" style="width:auto;padding:0 12px" data-act="toggleList" data-id="${l.id}">${esc(l.name)} · ${l.count}</span>`).join(''):`<span class="muted">Noch keine Listen – such dir Firmen mit dem Lead-Finder.</span>`}${c.lists.length?`<button class="btn sm ai-btn" style="margin-left:auto" data-act="ice" data-camp="${c.id}">${ic('sparkle')}KI-Einstiege</button>`:''}<button class="btn sm primary" style="${c.lists.length?'':'margin-left:auto'}" data-act="go" data-view="finder">${ic('radar')}Lead-Finder</button><button class="btn sm" data-act="import">${ic('upload',2)}CSV importieren</button></div></div>`;
  const callN=(R&&!R.preview)?R.rows.filter(r=>r.status==='done'||r.status==='replied').length:0;
  const callBar=(R&&!R.preview)?`<div class="card" style="padding:14px 16px;margin-bottom:14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:linear-gradient(120deg,var(--vsoft),transparent 70%),var(--surface)"><div class="prov" style="background:var(--vsoft);color:var(--violet2)">${ic('phone')}</div><div style="flex:1;min-width:220px"><b style="font-size:13.5px">Anrufliste</b><div class="muted" style="font-size:12.5px">Alle ohne Antwort nach dem letzten Follow-up plus Interessierte und „Später melden“ – mit Telefonnummer, für Excel. Abgemeldete und Gesperrte sind ausgeschlossen.</div></div><button class="btn sm primary" data-act="dl" data-url="/api/export?campaign=${c.id}&filter=call">${ic('phone')}Anrufliste herunterladen</button><button class="btn sm" data-act="dl" data-url="/api/export?campaign=${c.id}">${ic('file')}Alle als CSV</button></div>`:'';
  if(!R)return listChips+`<div class="card empty">${spinner} Lade Leads …</div>`;
@@ -311,7 +370,7 @@ V.leads=()=>{
  return `<div class="wrap"><div class="page-head"><div><h1>Leads</h1><p>${fmt(C.leadsCount)} Kontakte in ${C.lists.length} Liste${C.lists.length===1?'':'n'} · ${C.blocklist.length} auf der Sperrliste</p></div><div class="row gap"><button class="btn" data-act="go" data-view="finder">${ic('radar')}Lead-Finder</button><button class="btn primary" data-act="import" data-tour="import">${ic('upload',2)}Leads importieren</button></div></div>
  ${C.leadsCount?`<div style="display:grid;grid-template-columns:230px 1fr;gap:16px;align-items:start">
   <div class="card" style="padding:10px">${lists.map(([k,l,n])=>`<div class="fitem ${S.leadList===k?'on':''}" data-act="leadList" data-k="${k}">${ics(k==='all'?'users':'file')}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l)}</span><span class="count muted">${n}</span></div>`).join('')}<div style="border-top:1px solid var(--border);margin:8px 0"></div><div class="fitem" data-act="blockTab">${ics('shield')}Sperrliste<span class="count muted">${C.blocklist.length}</span></div></div>
-  <div class="card"><div class="row gap" style="padding:14px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap"><div class="search" style="max-width:280px;padding:7px 11px">${ics('search')}<input id="leadQ" placeholder="Name, Firma, E-Mail …" value="${esc(S.leadQ)}"></div><div class="seg">${[['all','Alle'],['new','Neu'],['contacted','In Sequenz'],['replied','Geantwortet']].map(([k,l])=>`<button class="${S.leadStatus===k?'on':''}" data-act="leadStatus" data-k="${k}">${l}</button>`).join('')}</div><button class="btn sm ghost" data-act="dl" data-url="/api/export?list=${encodeURIComponent(S.leadList)}&status=${S.leadStatus}" title="Als CSV für Excel exportieren">${ic('file')}Export</button>${cur?`<button class="btn sm ghost" data-act="renameList" data-id="${cur.id}" title="Liste umbenennen">${ic('edit')}</button><button class="btn sm ghost danger" data-act="delList" data-id="${cur.id}" title="Liste löschen">${ic('trash')}</button>`:''}<span class="muted" style="margin-left:auto;font-size:12.5px" id="leadCount"></span></div>
+  <div class="card"><div class="row gap" style="padding:14px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap"><div class="search" style="max-width:280px;padding:7px 11px">${ics('search')}<input id="leadQ" placeholder="Name, Firma, E-Mail …" value="${esc(S.leadQ)}"></div><div class="seg">${[['all','Alle'],['new','Neu'],['contacted','In Sequenz'],['replied','Geantwortet']].map(([k,l])=>`<button class="${S.leadStatus===k?'on':''}" data-act="leadStatus" data-k="${k}">${l}</button>`).join('')}</div><button class="btn sm ai-btn" data-act="ice" data-list="${cur?cur.id:''}" title="Persönlichen ersten Satz aus der Website jeder Firma schreiben">${ic('sparkle')}KI-Einstiege</button><button class="btn sm ghost" data-act="dl" data-url="/api/export?list=${encodeURIComponent(S.leadList)}&status=${S.leadStatus}" title="Als CSV für Excel exportieren">${ic('file')}Export</button>${cur?`<button class="btn sm ghost" data-act="renameList" data-id="${cur.id}" title="Liste umbenennen">${ic('edit')}</button><button class="btn sm ghost danger" data-act="delList" data-id="${cur.id}" title="Liste löschen">${ic('trash')}</button>`:''}<span class="muted" style="margin-left:auto;font-size:12.5px" id="leadCount"></span></div>
   <div id="leadTable"><div class="empty">${spinner} Lade …</div></div></div></div>`
  :`<div class="card empty" style="padding:60px 20px">${ics('users',30)}<h3 style="margin:12px 0 6px;color:var(--text)">Noch keine Leads</h3><p>Importiere eine CSV-Datei mit Firmen und E-Mail-Adressen. Aus Excel: <b>Datei → Speichern unter → CSV</b>.</p><button class="btn primary mt" data-act="import">${ic('upload',2)}Leads importieren</button></div>`}</div>`;
 };
@@ -340,7 +399,7 @@ function drawInbox(){
  r.innerHTML=m?`<div style="padding:20px 24px;border-bottom:1px solid var(--border)"><div class="row gap" style="align-items:flex-start">${av(m.fromName||m.from,40)}<div style="flex:1;min-width:0"><div class="row gap" style="flex-wrap:wrap"><b style="font-size:15px">${esc(m.fromName||m.from)}</b><span class="muted" style="font-size:12.5px">&lt;${esc(m.from)}&gt;</span></div><div class="muted" style="font-size:12.5px">${esc(m.company||'')}${m.campaign?' · Kampagne „'+esc(m.campaign)+'“':''}${m.step?' · Antwort auf '+esc(m.step):''} · an ${esc(m.account)}</div></div><span class="muted" style="font-size:12px">${dt(m.at)}</span></div>
  ${m.type!=='ooo'?`<div class="row gap-s" style="margin-top:14px;flex-wrap:wrap"><span class="muted" style="font-size:12px;margin-right:4px">Kategorie:</span>${[['interested','Interessiert'],['open','Offen'],['later','Später'],['no','Kein Interesse']].map(([k,l])=>`<button class="btn sm ${m.cat===k?'':'ghost'}" data-act="setCat" data-k="${k}" style="${m.cat===k?'border-color:var(--vline);background:var(--vsoft)':''}">${l}</button>`).join('')}<button class="btn sm ghost" style="margin-left:auto" data-act="openLead" data-id="${m.leadId}">${ic('eye')}Verlauf</button></div>`:''}</div>
  <div style="padding:20px 24px;flex:1"><h3 style="font-size:15px;margin-bottom:12px">${esc(m.subject)}</h3><div style="white-space:pre-wrap;line-height:1.65">${esc(m.text)||'<span class="faint">(kein Text)</span>'}</div>${m.answered?`<div class="result ok" style="margin-top:18px">${ics('check',15,2.4)}<div>Beantwortet am ${dt(m.answered)}</div></div>`:''}</div>
- ${m.type==='reply'?`<div style="padding:16px 24px;border-top:1px solid var(--border)"><textarea class="textarea" id="replyTa" style="min-height:90px" placeholder="Antwort schreiben …"></textarea><div class="row gap" style="margin-top:10px;justify-content:space-between"><span class="muted" style="font-size:12px">Wird im selben Verlauf gesendet von ${esc(m.account)}</span><button class="btn primary sm" data-act="sendReply" id="replyBtn">${ic('reply')}Antworten</button></div></div>`:''}`:`<div class="empty" style="margin:auto">Wähle eine Nachricht.</div>`;
+ ${m.type==='reply'?`<div style="padding:16px 24px;border-top:1px solid var(--border)"><textarea class="textarea" id="replyTa" style="min-height:90px" placeholder="Antwort schreiben …"></textarea><div class="row gap" style="margin-top:10px;justify-content:space-between"><span class="muted" style="font-size:12px">Wird im selben Verlauf gesendet von ${esc(m.account)}</span><div class="row gap-s"><button class="btn sm ai-btn" data-act="aiReply" id="aiReplyBtn">${ic('sparkle')}KI-Vorschlag</button><button class="btn primary sm" data-act="sendReply" id="replyBtn">${ic('reply')}Antworten</button></div></div></div>`:''}`:`<div class="empty" style="margin:auto">Wähle eine Nachricht.</div>`;
 }
 
 /* ================= Accounts ================= */
@@ -366,7 +425,7 @@ function calc(){const el=$('#calcIn');if(!el)return;const v=+el.value||0;store.s
 /* ================= Templates / Finder / Settings ================= */
 V.templates=()=>`<div class="wrap"><div class="page-head"><div><h1>Vorlagen</h1><p>Einzelne Texte und komplette Sequenzen zum Wiederverwenden.</p></div><button class="btn primary" data-act="newTpl">${ic('plus',2.2)}Neue Vorlage</button></div>
  <div class="grid g3">${C.templates.map(t=>`<div class="card tpl" data-act="useTpl" data-id="${t.id}"><div class="row" style="justify-content:space-between"><span class="badge ${t.type==='seq'?'b-violet':'b-mute'}">${t.type==='seq'?'Sequenz · '+t.steps.length+' Schritte':'Einzelne Mail'}</span><button class="x" data-act="delTpl" data-id="${t.id}" title="Löschen">${ic('trash')}</button></div><h4>${esc(t.name)}</h4><p>${esc(t.type==='seq'?t.steps[0].subject+' – '+t.steps[0].body:t.body)}</p><div class="foot"><span>${t.type==='seq'?'Klick: neue Kampagne damit':'Im Editor über „Aus Vorlage laden“'}</span></div></div>`).join('')}
- <div class="card tpl" style="display:grid;place-items:center;border-style:dashed;min-height:170px;box-shadow:none;cursor:default"><div style="text-align:center"><div class="prov" style="margin:0 auto 10px;background:var(--vsoft);color:var(--violet2)">${ic('sparkle')}</div><b>Mit KI schreiben</b><p class="muted" style="font-size:12px;margin-top:4px">Branche + Angebot eingeben, Text erhalten</p><span class="badge b-peach" style="margin-top:8px">Version 2</span></div></div></div></div>`;
+ <div class="card tpl ai-card" data-act="aiSeq" data-t="tpl" style="display:grid;place-items:center;border-style:dashed;min-height:170px;box-shadow:none;cursor:pointer"><div style="text-align:center"><div class="prov" style="margin:0 auto 10px;background:var(--vsoft);color:var(--violet2)">${ic('sparkle')}</div><b>Mit KI schreiben</b><p class="muted" style="font-size:12px;margin-top:4px">Branche eingeben – komplette Sequenz erhalten</p></div></div></div></div>`;
 /* ================= Lead-Finder ================= */
 const FS={meta:null,jobs:[],rows:[],total:0,offset:0,facets:{cities:[],categories:[]},sel:new Set(),job:'all',q:'',has:[],city:'',cat:'',sort:'distance',imported:'',searching:false,poll:null,busy:false,last:store.get('finderLast',{category:'cleaning',keyword:'',location:'Linz',radius:15,max:100})};
 const safeUrl=u=>{try{const x=new URL(u);return /^https?:$/.test(x.protocol)?x.href:''}catch(e){return''}};
@@ -475,14 +534,14 @@ function finderImportModal(ids,all){
   <div class="field"><label>Leadliste</label><select class="select" id="fiList"><option value="new">+ Neue Liste</option>${C.lists.map(l=>`<option value="${l.id}">${esc(l.name)} (${l.count})</option>`).join('')}</select></div>
   <div class="field" id="fiNameF"><label>Name der neuen Liste</label><input class="input" id="fiName" value="${esc(job?job.label:'Lead-Finder '+new Date().toLocaleDateString('de-AT'))}"></div>
   <label class="row gap" style="margin:4px 0 14px;cursor:pointer;align-items:flex-start"><input type="checkbox" class="cb" id="fiCamp" checked style="margin-top:2px"><span><b>Direkt startklare Kampagne anlegen</b><span class="muted" style="display:block;font-size:12.5px;margin-top:2px">Mit der passenden Branchen-Vorlage (3 Schritte), allen aktiven Postfächern und Versand Mo–Fr 8–16:30 Uhr. Du musst danach nur noch auf Start drücken.</span></span></label>
-  <p class="muted" style="font-size:12.5px">Übernommen werden Firmen mit E-Mail-Adresse. Firma, Ort, Branche, Telefon, Website und – falls gefunden – Vor- und Nachname des Ansprechpartners kommen mit, damit {Vorname} und {Firma} in deinen Mails funktionieren. Doppelte und gesperrte Adressen werden übersprungen.</p><div id="fiRes"></div></div>
+  ${aiOn()?`<label class="row gap" style="margin:0 0 14px;cursor:pointer;align-items:flex-start"><input type="checkbox" class="cb" id="fiIce" checked style="margin-top:2px"><span><b>Persönliche Einstiege mit KI schreiben</b><span class="muted" style="display:block;font-size:12.5px;margin-top:2px">Die KI liest die Website jeder Firma und schreibt einen ersten Satz für {Einstieg}. Läuft im Hintergrund, ca. 0,1 Cent pro Firma.</span></span></label>`:''}<p class="muted" style="font-size:12.5px">Übernommen werden Firmen mit E-Mail-Adresse. Firma, Ort, Branche, Telefon, Website und – falls gefunden – Vor- und Nachname des Ansprechpartners kommen mit, damit {Vorname} und {Firma} in deinen Mails funktionieren. Doppelte und gesperrte Adressen werden übersprungen.</p><div id="fiRes"></div></div>
   <div class="modal-f"><button class="btn ghost" data-act="closeModal">Abbrechen</button><button class="btn primary" id="fiGo" data-act="fImportGo" data-all="${all?1:''}">${ic('plus',2)}Übernehmen</button></div>`);
  FS.pendingIds=ids;
  $('#fiList').addEventListener('change',e=>{$('#fiNameF').style.display=e.target.value==='new'?'':'none'});
 }
 V.settings=()=>{
  const st=C.settings;
- const tabs=[['workspace','Workspace','home'],['security','Sicherheit & Login','key'],['users','Benutzer','users'],['unsub','Abmeldung & Fußzeile','shield'],['block','Sperrliste','x'],['look','Darstellung','eye'],['onb','Onboarding & Hilfe','book'],['data','Daten','file']];
+ const tabs=[['workspace','Workspace','home'],['ai','KI','sparkle'],['sig','Signatur','edit'],['security','Sicherheit & Login','key'],['users','Benutzer','users'],['unsub','Abmeldung & Fußzeile','shield'],['block','Sperrliste','x'],['look','Darstellung','eye'],['onb','Onboarding & Hilfe','book'],['data','Daten','file']];
  const b={
   workspace:`<h3 style="font-size:16px;margin-bottom:16px">Workspace</h3><div class="field"><label>Firmenname</label><input class="input" id="setCompany" value="${esc(C.workspace.name)}"></div><div class="field"><label>Zeitzone</label><select class="select" id="setTz">${['Europe/Vienna','Europe/Berlin','Europe/Zurich','Europe/Belgrade'].map(z=>`<option ${st.timezone===z?'selected':''}>${z}</option>`).join('')}</select><span class="hint">Bestimmt, was „heute“ für die Tageslimits bedeutet.</span></div>
   <div class="field"><label>Workspaces</label><div class="card" style="padding:12px 14px;box-shadow:none">${C.workspaces.map(w=>`<div class="row gap" style="padding:6px 0"><div class="ws" style="margin:0;flex:1;cursor:${w.id===C.workspace.id?'default':'pointer'}" ${w.id===C.workspace.id?'':`data-act="wsSwitch" data-id="${w.id}"`}><div class="av">${esc(w.name[0]||'W')}</div><div><strong>${esc(w.name)}</strong><span>${w.id===C.workspace.id?'Aktiv':'Wechseln'}</span></div></div></div>`).join('')}<button class="btn sm mt" data-act="wsNew">${ic('plus',2)}Kunden-Workspace</button><p class="muted" style="font-size:12px;margin-top:10px">Jeder Workspace hat eigene Konten, Leads, Kampagnen und Einstellungen.</p></div></div><div class="row gap mt2"><button class="btn primary" data-act="saveWs">Speichern</button></div>`,
@@ -490,6 +549,7 @@ V.settings=()=>{
   block:`<h3 style="font-size:16px;margin-bottom:6px">Globale Sperrliste</h3><p class="muted" style="font-size:12.5px;margin-bottom:14px">Diese Adressen und Domains werden in keiner Kampagne angeschrieben – auch nicht nach einem neuen Import. Eine Zeile pro Eintrag, ganze Firmen mit <code>@firma.at</code>.</p><textarea class="textarea" id="setBlock" style="min-height:220px;font-family:ui-monospace,monospace;font-size:12.5px">${esc(C.blocklist.join('\n'))}</textarea><span class="hint">${C.blocklist.length} Einträge · Bounces und Abmeldungen kommen automatisch dazu</span><div class="row gap mt"><button class="btn primary" data-act="saveBlock">Speichern</button></div>`,
   look:`<h3 style="font-size:16px;margin-bottom:16px">Darstellung</h3><div class="seg"><button class="${document.documentElement.dataset.theme==='dark'?'on':''}" data-act="setTheme" data-t="dark">Dunkel</button><button class="${document.documentElement.dataset.theme==='light'?'on':''}" data-act="setTheme" data-t="light">Hell</button></div>`,
   onb:`<h3 style="font-size:16px;margin-bottom:16px">Onboarding & Hilfe</h3><div class="row gap" style="flex-wrap:wrap"><button class="btn" data-act="tour">${ic('play')}Tour neu starten</button><button class="btn" data-act="welcome">${ic('sparkle')}Willkommens-Assistent</button><button class="btn" data-act="lesson">${ic('flame')}Lektion Warm-up</button><button class="btn" data-act="help">${ic('book')}Hilfe-Center</button></div>`,
+  ai:S.settingsTab==='ai'?aiSection():'',sig:S.settingsTab==='sig'?sigSection():'',
   security:secSection(),users:usersSection(),
   data:`<h3 style="font-size:16px;margin-bottom:10px">Daten & Betrieb</h3><p class="muted" style="font-size:13px">Alle Daten liegen in deiner Supabase-Datenbank (Rechenzentrum Frankfurt). App-Passwörter sind zusätzlich mit einem eigenen Schlüssel verschlüsselt, der getrennt davon bei Vercel liegt. Supabase macht automatisch tägliche Backups.</p><div class="callout mt">${ic('info')}<div>Versand und Antworterkennung laufen in der Cloud jede Minute automatisch – dein Computer kann aus sein.</div></div>`
  };
@@ -504,7 +564,7 @@ async function openLead(id){
  const l=j.lead,name=fullName(l)||l.company||l.email;
  const items=[];
  j.enroll.forEach(e=>{
-  items.push(`<div class="muted" style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin:4px 0 12px">Kampagne „${esc(e.campaign||'')}“</div>`);
+  items.push(`<div class="muted" style="font-size:11.5px;font-weight:700;font-weight:650;margin:4px 0 12px">Kampagne „${esc(e.campaign||'')}“</div>`);
   if(e.status==='pending')items.push(`<div class="tl-item plan"><div class="what">Wartet auf Mail 1</div><div class="cell-sub">Geht am nächsten Versandtag raus.</div></div>`);
   e.history.forEach(h=>{
    if(h.type==='sent')items.push(`<div class="tl-item"><div class="when">${dt(h.at)} · von ${esc(h.account)}</div><div class="what">${esc(e.steps[h.step]?(h.step===0?'Mail 1':'Follow-up '+h.step):'Mail')} gesendet</div><div class="body"><b>${esc(h.subject)}</b>\n\n${esc(h.text)}</div></div>`);
@@ -520,7 +580,8 @@ async function openLead(id){
  const canStop=j.enroll.some(e=>e.status==='pending'||e.status==='active');
  $('#panel').innerHTML=`<div class="panel-h">${av(name,46)}<div style="flex:1;min-width:0"><b style="font-size:16px">${esc(name)}</b><div class="cell-sub">${esc(l.company||'')}${l.city?' · '+esc(l.city):''}</div>${l.blocked?'<div style="margin-top:8px"><span class="badge b-bad">Auf der Sperrliste</span></div>':''}</div><button class="x" data-act="closePanel">${ic('x')}</button></div>
  <div class="panel-b"><div class="grid g2" style="gap:10px;margin-bottom:22px;font-size:12.5px"><div><div class="faint">E-Mail</div><div style="word-break:break-all">${esc(l.email)}</div></div><div><div class="faint">Telefon</div><div>${esc(l.phone||'—')}</div></div><div><div class="faint">Liste</div><div>${esc(l.list||'—')}</div></div><div><div class="faint">Herkunft</div><div>${esc(l.source||'—')}, ${new Date(l.createdAt).toLocaleDateString('de-AT')}</div></div></div>
- <h4 style="font-size:12px;margin-bottom:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Verlauf</h4><div class="tline">${items.join('')}</div>
+ ${l.website?`<div class="ice-box" id="iceBox" data-text="${esc(l.icebreaker||'')}"><div class="row" style="justify-content:space-between;margin-bottom:6px"><b class="row gap-s" style="font-size:12.5px">${ics('sparkle',14)}KI-Einstieg</b><div class="row gap-s"><button class="btn sm ghost" data-act="iceEdit" data-id="${l.id}" title="Bearbeiten">${ic('edit')}</button><button class="btn sm ghost" data-act="iceRegen" data-id="${l.id}">${ic('rotate')}${l.icebreaker?'Neu':'Schreiben'}</button></div></div><div class="ice-txt">${l.icebreaker?esc(l.icebreaker):`<span class="muted">${l.iceStatus==='skipped'?'Auf der Website nichts Konkretes gefunden.':l.iceStatus==='queued'||l.iceStatus==='working'?'Wird gerade geschrieben …':'Noch keiner – die KI liest dafür die Website.'}</span>`}</div><a class="ice-web" href="${esc(/^https?:/i.test(l.website)?l.website:'https://'+l.website)}" target="_blank" rel="noopener noreferrer">${esc(l.website.replace(/^https?:\/\/(www\.)?/,'').replace(/\/$/,''))}</a></div>`:''}
+ <h4 style="font-size:12px;margin-bottom:14px;color:var(--muted);font-weight:650">Verlauf</h4><div class="tline">${items.join('')}</div>
  <div class="row gap mt" style="flex-wrap:wrap">${canStop?`<button class="btn sm" data-act="stopLead" data-id="${l.id}">${ic('pause')}Sequenz stoppen</button>`:''}${l.blocked?'':`<button class="btn sm ghost danger" data-act="blockLead" data-id="${l.id}">${ic('shield')}Sperren</button>`}<button class="btn sm ghost danger" data-act="delLead" data-id="${l.id}">${ic('trash')}Löschen</button></div></div>`;
 }
 function closePanel(){$('#panel').classList.remove('open');$('#panelBg').classList.remove('open')}
@@ -960,9 +1021,10 @@ Object.assign(A,{
   const body={listId:$('#fiList').value,listName:$('#fiName').value,campaign:$('#fiCamp').checked};if(d.all){const f=Object.fromEntries(fQs());body.filter=f}else body.ids=FS.pendingIds;
   const j=await post('/api/finder/import',body);b.disabled=false;b.innerHTML=ic('plus',2)+'Übernehmen';
   if(!j.ok){$('#fiRes').innerHTML=resBox('err',esc(j.error));return}
+  const iceOn=$('#fiIce')&&$('#fiIce').checked&&j.imported>0;if(iceOn)post('/api/ai/icebreakers',{listId:j.listId}).catch(()=>{});
   closeModal();await refresh(false);FS.sel.clear();await loadResults(true);
   const extra=[j.duplicates&&`${j.duplicates} schon in der Liste`,j.blocked&&`${j.blocked} gesperrt`,j.invalid&&`${j.invalid} ungültig`,j.noEmail&&`${j.noEmail} ohne E-Mail`].filter(Boolean).join(', ');
-  modal(`${mh('Übernommen',`${fmt(j.imported)} Lead${j.imported===1?'':'s'} in der Leadliste`)}<div class="modal-b">${resBox('ok',`<b>${fmt(j.imported)} neue Leads</b>${extra?' · übersprungen: '+esc(extra):''}`)}${j.campaign?`<div class="callout mt">${ic('send')}<div>Kampagne angelegt mit der Vorlage <b>${esc(j.campaign.template)}</b>. Schau kurz über die Texte und drück auf <b>Start</b>.</div></div>`:'<p class="muted mt" style="font-size:12.5px">Du kannst die Liste jetzt in einer Kampagne auswählen.</p>'}</div><div class="modal-f"><button class="btn ghost" data-act="closeModal">Weiter suchen</button>${j.campaign?`<button class="btn" data-act="fGoList" data-id="${j.listId}">${ic('users')}Leadliste</button><button class="btn primary" data-act="fGoCamp" data-id="${j.campaign.id}">${ic('send')}Zur Kampagne</button>`:`<button class="btn primary" data-act="fGoList" data-id="${j.listId}" data-close="1">${ic('users')}Zur Leadliste</button>`}</div>`);
+  modal(`${mh('Übernommen',`${fmt(j.imported)} Lead${j.imported===1?'':'s'} in der Leadliste`)}<div class="modal-b">${resBox('ok',`<b>${fmt(j.imported)} neue Leads</b>${extra?' · übersprungen: '+esc(extra):''}`)}${j.campaign?`<div class="callout mt">${ic('send')}<div>Kampagne angelegt mit der Vorlage <b>${esc(j.campaign.template)}</b>. Schau kurz über die Texte und drück auf <b>Start</b>.</div></div>`:'<p class="muted mt" style="font-size:12.5px">Du kannst die Liste jetzt in einer Kampagne auswählen.</p>'}${iceOn?`<div class="callout mt">${ic('sparkle')}<div>Die KI schreibt jetzt im Hintergrund persönliche Einstiege für die Firmen mit Website. Fortschritt: Leads → <b>KI-Einstiege</b>.</div></div>`:''}</div><div class="modal-f"><button class="btn ghost" data-act="closeModal">Weiter suchen</button>${j.campaign?`<button class="btn" data-act="fGoList" data-id="${j.listId}">${ic('users')}Leadliste</button><button class="btn primary" data-act="fGoCamp" data-id="${j.campaign.id}">${ic('send')}Zur Kampagne</button>`:`<button class="btn primary" data-act="fGoList" data-id="${j.listId}" data-close="1">${ic('users')}Zur Leadliste</button>`}</div>`);
  },
  fGoList:d=>{closeModal();closePanel();S.leadList=d.id||'all';go('leads')},
  fGoCamp:async d=>{closeModal();closePanel();await refresh(false);A.openCamp({id:d.id})},
@@ -978,3 +1040,120 @@ document.addEventListener('change',e=>{const t=e.target;
  if(t.dataset.fall!==undefined){FS.rows.forEach(r=>t.checked?FS.sel.add(r.id):FS.sel.delete(r.id));drawResults()}
 });
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&['fLoc','fKw'].includes(e.target.id))A.fSearch()});
+
+/* ================= KI & Signatur ================= */
+const sigOf=a=>{const raw=(a&&a.signature)||(C.settings.signature&&C.settings.signature.html)||'';return raw?raw.replace(/\{Name\}/g,esc((a&&a.name)||'')).replace(/\{E-Mail\}/g,esc((a&&a.email)||'')).replace(/\{Firma\}/g,esc(C.settings.company||'')):''};
+const aiOn=()=>!!(C&&C.ai&&C.ai.configured);
+const aiOff=()=>toast('KI ist noch nicht eingerichtet: OPENAI_KEY fehlt in Vercel','warn');
+const AIS={seq:null,rw:null};
+function aiSeqModal(target){
+ if(!aiOn())return aiOff();
+ const c=target==='camp'?camp():null;AIS.seq={target,steps:null,n:3};
+ modal(`${mh(`${ics('sparkle',18)} Sequenz mit KI schreiben`,'Die KI schreibt Mail 1 und die Follow-ups – kurz, in Sie-Form, mit deinen Variablen.')}<div class="modal-b">
+  <div class="field"><label>Zielgruppe / Branche</label><input class="input" id="aiInd" placeholder="z. B. Kfz-Werkstätten in Oberösterreich" value="${esc(c?c.name.split('·')[0].trim():'')}"></div>
+  <div class="field"><label>Worauf soll die KI achten? <span class="muted" style="font-weight:500">(optional)</span></label><textarea class="textarea" id="aiNotes" style="min-height:70px" placeholder="z. B. Fokus auf Online-Terminbuchung, Hinweis auf Reifensaison, sehr kurz halten"></textarea></div>
+  <div class="field"><label>Anzahl Mails</label><div class="seg" id="aiN">${[2,3,4].map(n=>`<button class="${n===3?'on':''}" data-act="aiN" data-n="${n}">${n}</button>`).join('')}</div></div>
+  <div class="callout" style="margin-bottom:4px">${ic('info')}<div style="font-size:12.5px">Grundlage ist dein Angebot aus <b>Einstellungen → KI</b>. ${target==='camp'?'Die aktuellen Texte der Kampagne werden erst ersetzt, wenn du auf „Übernehmen“ klickst.':'Das Ergebnis wird als neue Sequenz-Vorlage gespeichert.'}</div></div>
+  <div id="aiOut"></div></div>
+  <div class="modal-f"><button class="btn ghost" data-act="closeModal">Abbrechen</button><button class="btn primary" id="aiGo" data-act="aiSeqGo">${ic('sparkle')}Schreiben</button><button class="btn primary" id="aiUse" data-act="aiSeqUse" style="display:none">${ic('check',2)}Übernehmen</button></div>`,true);
+ setTimeout(()=>$('#aiInd')?.focus(),50);
+}
+function aiStepsHtml(steps){return `<div class="ai-steps">${steps.map((s,i)=>`<div class="ai-step"><div class="ai-step-h"><span class="num">${i+1}</span><b>${i===0?'Mail 1':'Follow-up '+i}</b>${i>0?`<span class="muted">· ${s.wait} Werktage später, im selben Verlauf</span>`:''}</div>${s.subject?`<div class="ai-subj">Betreff: <b>${esc(s.subject)}</b></div>`:''}<div class="ai-body">${esc(s.body)}</div></div>`).join('')}</div>`}
+async function aiSeqGo(){
+ const b=$('#aiGo');b.disabled=true;b.innerHTML=spinner+'KI schreibt …';$('#aiOut').innerHTML=`<div class="ai-wait">${spinner}<span>Das dauert meist 10–20 Sekunden …</span></div>`;
+ const j=await post('/api/ai/sequence',{industry:$('#aiInd').value,notes:$('#aiNotes').value,steps:AIS.seq.n});
+ b.disabled=false;b.innerHTML=ic('rotate')+'Nochmal';if(j.ok)b.className='btn';
+ if(!j.ok){$('#aiOut').innerHTML=resBox('err',esc(j.error));return}
+ AIS.seq.steps=j.steps;$('#aiOut').innerHTML=aiStepsHtml(j.steps);$('#aiUse').style.display='';
+}
+async function aiSeqUse(){
+ const st=AIS.seq&&AIS.seq.steps;if(!st)return;
+ if(AIS.seq.target==='camp'){S.edit=JSON.parse(JSON.stringify(st));S.step=0;saveSteps();closeModal();render(true);toast('KI-Sequenz übernommen – speichert automatisch')}
+ else{const name='KI: '+($('#aiInd').value.trim()||'Sequenz').slice(0,60);await post('/api/templates',{type:'seq',name,steps:st});closeModal();await refresh();toast('Als Vorlage gespeichert')}
+}
+const RW_MODES=[['besser','Mehr Antworten'],['kuerzer','Kürzer'],['persoenlicher','Persönlicher'],['lockerer','Lockerer'],['formeller','Förmlicher'],['betreff','Besserer Betreff']];
+function aiRewriteModal(){
+ if(!aiOn())return aiOff();
+ const st=S.edit[S.step];AIS.rw={mode:'besser',res:null};
+ modal(`${mh(`${ics('sparkle',18)} Mit KI umschreiben`,`${S.step===0?'Mail 1':'Follow-up '+S.step} – Variablen wie {Anrede} und {Firma} bleiben erhalten.`)}<div class="modal-b">
+  <div class="field"><label>Was soll besser werden?</label><div class="row gap-s" style="flex-wrap:wrap" id="rwModes">${RW_MODES.filter(([k])=>k!=='betreff'||!(st.thread&&S.step>0)).map(([k,l])=>`<span class="fchip ${k==='besser'?'on':''}" data-act="rwMode" data-k="${k}">${l}</span>`).join('')}</div></div>
+  <div class="field"><label>Eigene Anweisung <span class="muted" style="font-weight:500">(optional)</span></label><input class="input" id="rwIns" placeholder="z. B. erwähne die Reifensaison, ohne das Wort „Assistent“"></div>
+  <div class="grid g2" style="gap:14px"><div><div class="lv-h"><span>Jetzt</span></div><div class="ai-body ai-old">${esc(st.body)}</div></div><div><div class="lv-h"><span>Vorschlag</span></div><div id="rwOut" class="ai-body ai-new"><span class="muted">Noch kein Vorschlag – klick auf „Umschreiben“.</span></div></div></div></div>
+  <div class="modal-f"><button class="btn ghost" data-act="closeModal">Abbrechen</button><button class="btn primary" id="rwGo" data-act="rwGo">${ic('sparkle')}Umschreiben</button><button class="btn primary" id="rwUse" data-act="rwUse" style="display:none">${ic('check',2)}Übernehmen</button></div>`,true);
+}
+async function rwGo(){
+ const st=S.edit[S.step];const b=$('#rwGo');b.disabled=true;b.innerHTML=spinner+'KI schreibt …';$('#rwOut').innerHTML=`<div class="ai-wait">${spinner}<span>Einen Moment …</span></div>`;
+ const j=await post('/api/ai/rewrite',{subject:st.thread&&S.step>0?S.edit[0].subject:st.subject,body:st.body,mode:AIS.rw.mode,instruction:$('#rwIns').value,step:S.step});
+ b.disabled=false;b.innerHTML=ic('rotate')+'Nochmal';if(j.ok)b.className='btn';
+ if(!j.ok){$('#rwOut').innerHTML=resBox('err',esc(j.error));return}
+ AIS.rw.res=j;$('#rwOut').innerHTML=`${!(st.thread&&S.step>0)&&j.subject&&j.subject!==st.subject?`<div class="ai-subj">Betreff: <b>${esc(j.subject)}</b></div>`:''}${esc(AIS.rw.mode==='betreff'?st.body:j.body)}`;$('#rwUse').style.display='';
+}
+function rwUse(){const r=AIS.rw&&AIS.rw.res;if(!r)return;const st=S.edit[S.step];if(AIS.rw.mode!=='betreff')st.body=r.body;if(!(st.thread&&S.step>0)&&r.subject)st.subject=r.subject;saveSteps();closeModal();render(true);toast('Übernommen')}
+async function aiReply(){
+ if(!aiOn())return aiOff();
+ const b=$('#aiReplyBtn');b.disabled=true;b.innerHTML=spinner+'KI schreibt …';
+ const j=await post('/api/ai/reply',{id:S.inboxSel});b.disabled=false;b.innerHTML=ic('sparkle')+'KI-Vorschlag';
+ if(!j.ok)return toast(esc(j.error),'bad');const ta=$('#replyTa');if(ta){ta.value=j.text;ta.style.minHeight='180px';ta.focus()}
+}
+/* KI-Einstiege */
+let ICE=null;
+async function iceModal(scope){
+ if(!aiOn())return aiOff();
+ ICE={scope,timer:null};const qs=scope.listId?'listId='+scope.listId:scope.campaignId?'campaignId='+scope.campaignId:'';
+ modal(`${mh(`${ics('sparkle',18)} Persönliche Einstiege mit KI`,'Die KI liest die Website jeder Firma und schreibt einen ersten Satz, der zeigt, dass du dich wirklich mit der Firma beschäftigt hast.')}<div class="modal-b" id="iceB"><div class="empty">${spinner}</div></div><div class="modal-f" id="iceF"><button class="btn ghost" data-act="closeModal">Schließen</button></div>`,true);
+ const j=await get('/api/ai/icebreakers?'+qs);if(!j.ok){$('#iceB').innerHTML=resBox('err',esc(j.error));return}drawIce(j);if(j.queued)icePoll();
+}
+function drawIce(j){
+ const open=Math.max(0,j.withWebsite-j.done-j.skipped-j.queued-j.error);const pct=j.withWebsite?Math.round((j.done+j.skipped+j.error)/j.withWebsite*100):0;
+ $('#iceB').innerHTML=`<div class="grid g4" style="gap:10px;margin-bottom:16px">${miniStat('Mit Website',fmt(j.withWebsite))}${miniStat('Fertig',fmt(j.done),'good')}${miniStat('In Arbeit',fmt(j.queued))}${miniStat('Nichts gefunden',fmt(j.skipped+j.error))}</div>
+ ${j.queued?`<div class="prog" style="height:8px;margin-bottom:8px"><i style="width:${pct}%"></i></div><p class="muted" style="font-size:12.5px">${spinner} Läuft – du kannst das Fenster schließen, es geht im Hintergrund weiter.</p>`:''}
+ <div class="callout mt">${ic('info')}<div style="font-size:12.5px">So nutzt du es: In der Sequenz steht <b>{Einstieg}</b> als eigene Zeile nach der Anrede. Hat ein Lead keinen Einstieg (keine Website oder nichts Konkretes), wird die Zeile einfach weggelassen. Kosten: etwa 0,1 Cent pro Firma.</div></div>
+ ${j.total-j.withWebsite>0?`<p class="muted mt" style="font-size:12.5px">${fmt(j.total-j.withWebsite)} Leads ohne Website werden übersprungen.</p>`:''}`;
+ $('#iceF').innerHTML=`<button class="btn ghost" data-act="closeModal">Schließen</button>${j.done?`<button class="btn" data-act="iceGo" data-redo="1">${ic('rotate')}Alle neu schreiben</button>`:''}${open||j.error?`<button class="btn primary" data-act="iceGo">${ic('sparkle')}Für ${fmt(open+j.error)} Firmen schreiben</button>`:''}`;
+}
+async function icePoll(){clearTimeout(ICE&&ICE.timer);if(!ICE||!$('#iceB'))return;const j=await post('/api/ai/icebreakers/step',ICE.scope);if(!$('#iceB'))return;if(j.ok){drawIce(j);if(j.error)toast(esc(j.error),'bad');if(j.queued&&!j.error)ICE.timer=setTimeout(icePoll,800);else if(!j.queued)toast('KI-Einstiege fertig')}}
+async function iceGo(redo){const b=document.querySelector('[data-act="iceGo"]:not([data-redo])')||document.querySelector('[data-act="iceGo"]');if(b){b.disabled=true;b.innerHTML=spinner+'Startet …'}const j=await post('/api/ai/icebreakers',{...ICE.scope,redo:!!redo});if(!j.ok){toast(esc(j.error),'bad');if(b)b.disabled=false;return}drawIce(j);if(j.queued)icePoll()}
+async function iceLead(id,regen){
+ const box=$('#iceBox');if(!box)return;
+ if(regen){if(!aiOn())return aiOff();box.querySelector('.ice-txt').innerHTML=`<span class="muted">${spinner} KI liest die Website …</span>`;const j=await post(`/api/leads/${id}/icebreaker`,{});if(!j.ok){box.querySelector('.ice-txt').innerHTML=`<span style="color:var(--bad)">${esc(j.error)}</span>`;return}box.querySelector('.ice-txt').innerHTML=j.text?esc(j.text):`<span class="muted">${esc(j.reason||'Nichts gefunden')}</span>`;box.dataset.text=j.text||'';return}
+ box.querySelector('.ice-txt').innerHTML=`<textarea class="textarea" id="iceEdit" style="min-height:70px">${esc(box.dataset.text||'')}</textarea><div class="row gap-s" style="margin-top:8px;justify-content:flex-end"><button class="btn sm" data-act="iceSave" data-id="${id}">${ic('check',2)}Speichern</button></div>`;
+}
+async function iceSave(id){const t=$('#iceEdit').value;const j=await post(`/api/leads/${id}/icebreaker`,{text:t});if(!j.ok)return toast(esc(j.error),'bad');const box=$('#iceBox');box.dataset.text=j.text;box.querySelector('.ice-txt').innerHTML=j.text?esc(j.text):'<span class="muted">Kein Einstieg</span>';toast('Gespeichert')}
+/* Einstellungen: KI + Signatur */
+let AIINFO=null,SIGACC='';
+function aiSection(){
+ if(!AIINFO){get('/api/ai').then(j=>{if(j.ok){AIINFO=j;if(S.view==='settings'&&S.settingsTab==='ai')render(true)}});return `<div class="empty">${spinner}</div>`}
+ const u=AIINFO.usage;
+ return `<h3 style="font-size:16px;margin-bottom:6px">KI (OpenAI)</h3><p class="muted" style="font-size:12.5px;margin-bottom:16px">Schreibt Sequenzen, verbessert Texte, schlägt Antworten vor und erstellt persönliche Einstiege aus der Website jedes Leads.</p>
+ <div class="callout ${AIINFO.configured?'ok':''}" style="margin-bottom:18px">${ic(AIINFO.configured?'check':'info')}<div>${AIINFO.configured?`<b>Verbunden</b> · Modell ${esc(AIINFO.model)} · Schlüssel liegt sicher als Vercel-Variable, nicht in der Datenbank.`:'<b>Nicht eingerichtet.</b> Lege in Vercel die Variable <code>OPENAI_KEY</code> (Typ „Sensitive“) an und deploye neu.'}</div></div>
+ <div class="field"><label>Dein Angebot – Grundlage für alle KI-Texte</label><textarea class="textarea" id="aiOffer" style="min-height:130px">${esc(C.ai.offer)}</textarea><span class="hint">Was verkaufst du, an wen, was ist der Nutzen? Je konkreter, desto besser die Texte. Keine Preise oder Zahlen, die du nicht belegen kannst.</span></div>
+ <div class="row gap"><button class="btn primary" data-act="aiOfferSave">${ic('check',2)}Speichern</button><button class="btn ghost" data-act="aiOfferReset">Standardtext</button></div>
+ <h4 class="sec-h">Verbrauch diesen Monat</h4><div class="grid g4" style="gap:10px">${miniStat('KI-Anfragen',fmt(u.calls))}${miniStat('Einstiege',fmt(u.byKind.icebreaker||0))}${miniStat('Tokens',fmt(u.tokensIn+u.tokensOut))}${miniStat('Kosten ca.',(u.costUsd<0.01&&u.calls?'< 0,01':num(u.costUsd))+' $')}</div>`;
+}
+function sigSection(){
+ const st=C.settings,gws=C.accounts.filter(a=>a.authType==='gworkspace');const acc=SIGACC?C.accounts.find(a=>a.id===SIGACC):null;const html=acc?acc.signature:((st.signature&&st.signature.html)||'');
+ return `<h3 style="font-size:16px;margin-bottom:6px">E-Mail-Signatur</h3><p class="muted" style="font-size:12.5px;margin-bottom:16px">Wird automatisch unter jede Mail aus dem Tool gehängt – Kampagnen, Testmails und Antworten aus dem Posteingang. Platzhalter: <code>{Name}</code>, <code>{E-Mail}</code>, <code>{Firma}</code>.</p>
+ <div class="field"><label>Signatur für</label><div class="seg" style="flex-wrap:wrap"><button class="${!SIGACC?'on':''}" data-act="sigAcc" data-id="">Alle Konten (Standard)</button>${C.accounts.map(a=>`<button class="${SIGACC===a.id?'on':''}" data-act="sigAcc" data-id="${a.id}">${esc(a.email.split('@')[0])}${a.signature?' ●':''}</button>`).join('')}</div>${acc?`<span class="hint">Eigene Signatur nur für ${esc(acc.email)}. Leer lassen = Standard-Signatur wird verwendet.</span>`:''}</div>
+ <div class="field"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px"><label style="margin:0">Signatur</label><div class="row gap-s">${gws.length?`<select class="select sm" id="sigFrom">${gws.map(a=>`<option value="${a.id}" ${(acc?acc.id:gws.find(x=>/^kontakt@/.test(x.email))?.id)===a.id?'selected':''}>${esc(a.email)}</option>`).join('')}</select><button class="btn sm" data-act="sigImport">${ic('upload',2)}Aus Gmail übernehmen</button>`:''}<button class="btn sm ghost" data-act="sigHtml">HTML</button></div></div>
+ <div class="sig-ed" id="sigEd" contenteditable="true" data-ph="Signatur hier einfügen (z. B. aus Gmail kopieren) oder oben aus Gmail übernehmen">${html}</div><textarea class="textarea" id="sigTa" style="display:none;min-height:160px;font-family:ui-monospace,monospace;font-size:12px">${esc(html)}</textarea>
+ <span class="hint">Tipp: Wenn deine Signatur deinen Namen enthält, kannst du in den Vorlagen die Zeile <code>{Absender}</code> unter „Viele Grüße“ weglassen.</span></div>
+ <div class="row gap" style="flex-wrap:wrap"><button class="btn primary" data-act="sigSave">${ic('check',2)}Speichern</button>${acc&&acc.signature?`<button class="btn ghost" data-act="sigClear">Eigene Signatur entfernen</button>`:''}${gws.length&&!acc?`<button class="btn ghost" data-act="sigPush" style="margin-left:auto">${ic('send')}Auch in Gmail für alle Konten setzen</button>`:''}</div><div id="sigRes" class="mt"></div>`;
+}
+const sigVal=()=>{const ta=$('#sigTa');return ta&&ta.style.display!=='none'?ta.value:$('#sigEd').innerHTML};
+Object.assign(A,{
+ aiSeq:d=>aiSeqModal(d.t||'camp'),aiSeqGo,aiSeqUse,aiN:d=>{AIS.seq.n=+d.n;document.querySelectorAll('#aiN button').forEach(b=>b.classList.toggle('on',b.dataset.n===d.n))},
+ aiRewrite:aiRewriteModal,rwGo,rwUse,rwMode:d=>{AIS.rw.mode=d.k;document.querySelectorAll('#rwModes .fchip').forEach(x=>x.classList.toggle('on',x.dataset.k===d.k))},
+ aiReply,
+ ice:d=>iceModal(d.list?{listId:d.list}:d.camp?{campaignId:d.camp}:{}),iceGo:d=>iceGo(d.redo),iceRegen:d=>iceLead(d.id,true),iceEdit:d=>iceLead(d.id,false),iceSave:d=>iceSave(d.id),
+ aiOfferSave:async()=>{const j=await patch('/api/settings',{aiOffer:$('#aiOffer').value});if(!j.ok)return toast(esc(j.error),'bad');await refresh(false);toast('Gespeichert')},
+ aiOfferReset:()=>{$('#aiOffer').value=C.ai.defaultOffer},
+ sigAcc:d=>{SIGACC=d.id;render(true)},
+ sigHtml:()=>{const ta=$('#sigTa'),ed=$('#sigEd');if(ta.style.display==='none'){ta.value=ed.innerHTML;ta.style.display='';ed.style.display='none'}else{ed.innerHTML=ta.value;ta.style.display='none';ed.style.display=''}},
+ sigImport:async()=>{const id=$('#sigFrom').value;const j=await post('/api/signature/import',{accountId:id});if(!j.ok)return $('#sigRes').innerHTML=resBox('err',esc(j.error));$('#sigEd').innerHTML=j.html;$('#sigTa').value=j.html;$('#sigRes').innerHTML=resBox('ok','Übernommen – prüfen und auf <b>Speichern</b> klicken.')},
+ sigSave:async()=>{const j=await post('/api/signature',{html:sigVal(),accountId:SIGACC||undefined});if(!j.ok)return toast(esc(j.error),'bad');await refresh(false);render(true);toast('Signatur gespeichert')},
+ sigClear:async()=>{await post('/api/signature',{html:'',accountId:SIGACC});await refresh(false);render(true);toast('Eigene Signatur entfernt')},
+ sigPush:()=>confirmModal('Signatur in Gmail setzen?','Die Standard-Signatur (bzw. die eigene Signatur eines Kontos) wird in allen verbundenen Google-Postfächern als Gmail-Signatur eingetragen. So haben auch Mails, die du direkt in Gmail schreibst, dieselbe Signatur.','In Gmail setzen',async()=>{
+  const j=await post('/api/signature/push',{});
+  if(j.scopeMissing)return modal(`${mh('Noch eine Freigabe nötig')}<div class="modal-b"><p style="font-size:13.5px">Zum Ändern der Gmail-Signatur braucht die Admin-Verbindung eine zusätzliche Berechtigung. Einmalig in der Google Admin-Konsole:</p><ol style="font-size:13px;margin:12px 0 0 18px;line-height:1.8"><li>admin.google.com → Sicherheit → Zugriffs- und Datenverwaltung → API-Steuerung → <b>Domainweite Delegierung</b></li><li>Beim Client <code>${esc(j.clientId||'')}</code> auf <b>Bearbeiten</b></li><li>Diesen Bereich ergänzen (Komma-getrennt): <div class="row gap-s" style="margin-top:6px"><code style="word-break:break-all">${esc(j.scope)}</code><button class="btn sm ghost" data-act="copyTxt" data-v="${esc(j.scope)}">${ic('copy')}</button></div></li><li>Speichern, 1–2 Minuten warten und hier nochmal klicken.</li></ol></div><div class="modal-f"><button class="btn primary" data-act="closeModal">Verstanden</button></div>`);
+  if(!j.ok)return toast(esc(j.error),'bad');const bad=j.results.filter(r=>!r.ok);modal(`${mh('Gmail-Signaturen')}<div class="modal-b">${j.results.map(r=>`<div class="checkrow"><span class="ci ${r.ok?'ok':'no'}">${r.ok?'✓':'!'}</span><span>${esc(r.email)}${r.ok?'':' – '+esc(r.error)}</span></div>`).join('')}${bad.length?'':resBox('ok','In allen Postfächern gesetzt.')}</div><div class="modal-f"><button class="btn primary" data-act="closeModal">OK</button></div>`)})
+});
