@@ -428,7 +428,7 @@ async function openFinderLead(id){
   <div class="row gap mt" style="flex-wrap:wrap">${r.imported?`<button class="btn" data-act="fGoList" data-id="${r.importedList||''}">${ic('users')}Zur Leadliste</button>`:`<button class="btn primary" data-act="fImport" data-one="${r.id}" ${r.email?'':'disabled title="Keine E-Mail gefunden"'}>${ic('plus',2)}In Leadliste übernehmen</button>`}${w?`<button class="btn" data-act="fRecrawl" data-one="${r.id}">${ic('refresh')}Website neu prüfen</button>`:''}<button class="btn ghost danger" data-act="fDelSel" data-one="${r.id}">${ic('trash')}</button></div>
  </div>`;
 }
-function importModal(ids,all){
+function finderImportModal(ids,all){
  const n=all?FS.total:ids.length;const withMail=all?null:FS.rows.filter(r=>ids.includes(r.id)&&r.email).length;
  const job=FS.jobs.find(j=>j.id===FS.job);
  modal(`${mh('In Leadliste übernehmen',`${fmt(n)} Firma${n===1?'':'en'} ausgewählt${withMail!=null?` · ${fmt(withMail)} mit E-Mail`:''}`)}<div class="modal-b">
@@ -912,7 +912,7 @@ Object.assign(A,{
  fMore:()=>{FS.offset+=100;loadResults(false)},
  fRow:(d,el,e)=>{if(e.target.closest('a,input,button'))return;openFinderLead(d.id)},
  fClear:()=>{FS.sel.clear();drawResults()},
- fImport:d=>{if(d.one){closePanel();return importModal([d.one],false)}if(d.all)return importModal([],true);importModal([...FS.sel],false)},
+ fImport:d=>{if(d.one){closePanel();return finderImportModal([d.one],false)}if(d.all)return finderImportModal([],true);finderImportModal([...FS.sel],false)},
  fImportGo:async(d)=>{const b=$('#fiGo');b.disabled=true;b.innerHTML=spinner+'Übernehme …';
   const body={listId:$('#fiList').value,listName:$('#fiName').value,campaign:$('#fiCamp').checked};if(d.all){const f=Object.fromEntries(fQs());body.filter=f}else body.ids=FS.pendingIds;
   const j=await post('/api/finder/import',body);b.disabled=false;b.innerHTML=ic('plus',2)+'Übernehmen';
