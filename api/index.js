@@ -55,7 +55,7 @@ module.exports = async (req, res) => {
       const got = await q(sb().rpc('acquire_lock', { p_name: 'tick', p_seconds: 58 }));
       if (!got) return send(res, 200, { ok: true, skipped: 'läuft bereits' });
       const deadline = Date.now() + 45000;
-      try { const r = await C.tick(deadline); await C.pollDue(deadline + 8000); let f = {}; const fEnd = deadline + 11000; if (fEnd - Date.now() > 10000) f = await require('../lib/finder').process(fEnd).catch(e => ({ finderError: e.message })); let ai = {}; const aEnd = deadline + 14000; if (aEnd - Date.now() > 14000) ai = await require('../lib/ai').processIcebreakers(aEnd).catch(e => ({ aiError: e.message })); return send(res, 200, { ok: true, ...r, finder: f, ai }); }
+      try { const r = await C.tick(deadline); await C.pollDue(deadline + 8000); let f = {}; const fEnd = deadline + 11000; if (fEnd - Date.now() > 10000) f = await require('../lib/finder').process(fEnd).catch(e => ({ finderError: e.message })); let ai = {}; const aEnd = deadline + 14000; if (aEnd - Date.now() > 14000) { const AIx = require('../lib/ai'); ai = await AIx.processFinder(aEnd).catch(e => ({ aiError: e.message })); const r2 = await AIx.processIcebreakers(aEnd).catch(e => ({ aiError: e.message })); ai = { finder: ai, leads: r2 }; } return send(res, 200, { ok: true, ...r, finder: f, ai }); }
       finally { await q(sb().rpc('release_lock', { p_name: 'tick' })).catch(() => {}); }
     }
     if (req.method !== 'GET' && req.headers['x-ao'] !== '1') return send(res, 403, { ok: false, error: 'Anfrage blockiert (Sicherheitsprüfung).' });
