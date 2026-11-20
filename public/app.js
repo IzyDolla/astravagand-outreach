@@ -228,12 +228,24 @@ function campLeads(c){
  ${R.rows.map(r=>{const l=r.lead;const[lab,cls]=progressLabel(r,steps);return `<tr class="click" data-act="openLead" data-id="${l.id}"><td><div class="row gap">${av(fullName(l)||l.company||l.email,32)}<div><div class="cell-main">${esc(fullName(l)||'—')}</div><div class="cell-sub">${esc(l.email)}</div></div></div></td><td>${esc(l.company||'—')}<div class="cell-sub">${esc(l.city||'')}</div></td>
  <td><span class="badge ${cls}">${lab}</span></td><td class="muted" style="font-size:12.5px">${r.status==='active'&&r.nextAt?`${steps[r.step]} am ${dday(r.nextAt)}`:r.status==='pending'?'Mail 1 – nächster Versandtag':'—'}</td><td class="muted" style="font-size:12.5px">${esc(r.account||'—')}</td></tr>`}).join('')}</tbody></table>${R.total>R.rows.length?`<div class="muted" style="padding:12px 16px;font-size:12.5px">${R.rows.length} von ${R.total} angezeigt</div>`:''}`:`<div class="empty">Keine Leads in den gewählten Listen.</div>`}</div>`;
 }
+const SCHED_PRE=[['08:00','16:30','Bürozeiten 8–16:30'],['09:00','17:00','9–17 Uhr'],['07:00','20:00','Ganzer Tag 7–20'],['17:00','21:00','Abends 17–21']];
+const schedTz=sc=>sc.timezone||C.settings.timezone||'Europe/Vienna';
+const _tzf={};const schedParts=(d,tz)=>{const f=_tzf[tz]||(_tzf[tz]=new Intl.DateTimeFormat('en-US',{timeZone:tz,weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}));const p=Object.fromEntries(f.formatToParts(d).map(x=>[x.type,x.value]));return{wd:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].indexOf(p.weekday),hm:p.hour+':'+p.minute}};
+function schedOpen(sc,d=new Date()){const{wd,hm}=schedParts(d,schedTz(sc)),days=sc.days||[],f=sc.from||'08:00',t=sc.to||'17:00';if(sc.allDay||f===t)return!!days[wd];if(f<t)return!!days[wd]&&hm>=f&&hm<t;if(hm>=f)return!!days[wd];return hm<t&&!!days[(wd+6)%7]}
+function schedNext(sc){if(!(sc.days||[]).some(Boolean))return'';const dn=['Mo','Di','Mi','Do','Fr','Sa','So'];let d=new Date(Math.ceil(Date.now()/3e5)*3e5);for(let i=0;i<8*288;i++,d=new Date(+d+3e5))if(schedOpen(sc,d)){const{wd,hm}=schedParts(d,schedTz(sc));return dn[wd]+' '+hm+' Uhr'}return''}
+const schedTxt=sc=>{const d=sc.days||[],dn=['Mo','Di','Mi','Do','Fr','Sa','So'];const ds=d.every(Boolean)?'täglich':d.join('')==='1111100'?'Mo–Fr':dn.filter((_,i)=>d[i]).join(', ')||'keine Tage';return ds+', '+(sc.allDay||sc.from===sc.to?'rund um die Uhr':sc.from+'–'+sc.to+' Uhr')};
 function campSchedule(c){
- const sc=c.schedule,dn=['Mo','Di','Mi','Do','Fr','Sa','So'];const accs=c.accounts.map(accById).filter(a=>a&&a.status==='ok');const cap=accs.reduce((s,a)=>s+a.limit,0);
+ const sc=c.schedule,dn=['Mo','Di','Mi','Do','Fr','Sa','So'];const allDay=!!sc.allDay||sc.from===sc.to,over=!allDay&&sc.from>sc.to,live=schedOpen(sc),nxt=live?'':schedNext(sc);const accs=c.accounts.map(accById).filter(a=>a&&a.status==='ok');const cap=accs.reduce((s,a)=>s+a.limit,0);
  const pending=c.stats.total?c.stats.pending:C.lists.filter(l=>c.lists.includes(l.id)).reduce((s,l)=>s+l.count,0);const perDay=Math.min(c.dailyNew,cap||0);const days=perDay?Math.ceil(pending/perDay):0;
  return `<div class="grid g2"><div class="card" style="padding:20px"><h3 style="font-size:15px;margin-bottom:14px">Wann wird gesendet?</h3>
- <div class="field"><label>Versandtage</label><div class="row gap-s">${dn.map((d,i)=>`<span class="daychip ${sc.days[i]?'on':''}" data-act="day" data-i="${i}">${d}</span>`).join('')}</div></div>
- <div class="grid g2" style="gap:12px"><div class="field"><label>Von</label><input class="input" type="time" value="${sc.from}" data-sched="from"></div><div class="field"><label>Bis</label><input class="input" type="time" value="${sc.to}" data-sched="to"></div></div>
+ <div class="sched-now ${live?'on':''}"><span class="dot"></span>${live?'Zeitfenster ist gerade offen – es wird gesendet, sobald die Kampagne läuft':'Gerade Pause'+(nxt?' – nächstes Zeitfenster: <b>'+nxt+'</b>':'')}</div>
+ <div class="field"><label>Versandtage</label><div class="row gap-s" style="flex-wrap:wrap">${dn.map((d,i)=>`<span class="daychip ${sc.days[i]?'on':''}" data-act="day" data-i="${i}">${d}</span>`).join('')}</div>
+ <div class="row gap-s" style="flex-wrap:wrap;margin-top:8px"><span class="fchip ${sc.days.join('')==='1111100'?'on':''}" data-act="schedDays" data-d="wd">Mo–Fr</span><span class="fchip ${sc.days.every(Boolean)?'on':''}" data-act="schedDays" data-d="all">Jeden Tag</span></div>
+ ${sc.days.some(Boolean)?'':'<span class="hint" style="color:var(--warn)">Kein Tag gewählt – so wird nichts gesendet.</span>'}</div>
+ <div class="field"><label>Uhrzeit</label><div class="seg"><button class="${allDay?'':'on'}" data-act="schedMode" data-m="times">Bestimmte Uhrzeiten</button><button class="${allDay?'on':''}" data-act="schedMode" data-m="all">Rund um die Uhr (24 h)</button></div></div>
+ ${allDay?`<div class="callout" style="margin-bottom:14px">${ic('clock')}<div>An den gewählten Tagen wird <b>rund um die Uhr</b> gesendet. Die Tageslimits der Konten bleiben gleich – sie verteilen sich nur über 24 Stunden.</div></div>`:`<div class="grid g2" style="gap:12px"><div class="field"><label>Von</label><input class="input" type="time" value="${sc.from}" data-sched="from"></div><div class="field"><label>Bis</label><input class="input" type="time" value="${sc.to}" data-sched="to"></div></div>
+ <div class="field" style="margin-top:-6px"><div class="row gap-s" style="flex-wrap:wrap">${SCHED_PRE.map(([f,t,l])=>`<span class="fchip ${sc.from===f&&sc.to===t?'on':''}" data-act="schedPreset" data-f="${f}" data-t="${t}">${l}</span>`).join('')}</div>
+ <span class="hint">${over?`Läuft über Mitternacht: ab ${sc.from} bis ${sc.to} Uhr am nächsten Morgen.`:'Eigene Zeiten oben eintragen – auch über Mitternacht möglich, z. B. 18:00 bis 02:00.'}</span></div>`}
  <div class="field"><label>Zeitzone der Empfänger</label><select class="select" data-sched="timezone">${['','Europe/Vienna','Europe/Berlin','Europe/Zurich','Europe/Belgrade'].map(z=>`<option value="${z}" ${sc.timezone===z?'selected':''}>${z||'Wie in Einstellungen ('+C.settings.timezone+')'}</option>`).join('')}</select></div>
  <div class="field"><label>Abstand zwischen zwei Mails pro Konto</label><div class="row gap"><input class="input" type="number" min="0" value="${sc.minGap}" data-sched="minGap" style="width:80px"><span class="muted">bis</span><input class="input" type="number" min="0" value="${sc.maxGap}" data-sched="maxGap" style="width:80px"><span class="muted">Minuten, zufällig</span></div><span class="hint">Zufällige Abstände wirken menschlich – Mails im Sekundentakt sind ein Spam-Signal.</span></div></div>
  <div class="card" style="padding:20px"><h3 style="font-size:15px;margin-bottom:14px">Wie viel wird gesendet?</h3>
@@ -618,7 +630,7 @@ async function startCheckModal(){
  await patch(`/api/campaigns/${c.id}`,{steps:S.edit});
  const j=await get(`/api/campaigns/${c.id}/check`);const rows=j.checks||[];const blocked=rows.some(r=>r.level==='error');
  modal(`${mh('Bereit zum Start?','Der Sicherheitscheck schützt deine Konten.')}<div class="modal-b"><div class="checks">${rows.map(r=>`<div class="checkrow" style="padding:5px 0"><span class="ci ${r.level==='ok'?'ok':r.level==='warn'?'wa':'no'}">${r.level==='ok'?'✓':r.level==='warn'?'–':'!'}</span><span>${esc(r.text)}</span></div>`).join('')}</div>
- ${blocked?resBox('err','Die Kampagne kann erst starten, wenn alle roten Punkte behoben sind.'):resBox('ok',`Alles bereit. Der Versand startet im nächsten Zeitfenster (${c.schedule.from}–${c.schedule.to}) und läuft, solange das Programm-Fenster offen ist.`)}</div>
+ ${blocked?resBox('err','Die Kampagne kann erst starten, wenn alle roten Punkte behoben sind.'):resBox('ok',`Alles bereit. Gesendet wird ${schedTxt(c.schedule)} – automatisch in der Cloud, auch wenn dein Browser zu ist.`)}</div>
  <div class="modal-f"><button class="btn ghost" data-act="closeModal">Schließen</button>${blocked?'':`<button class="btn primary" data-act="startCamp">${ic('play')}Jetzt starten</button>`}</div>`);
 }
 
@@ -715,6 +727,9 @@ const A={
  toggleCompany:async()=>{const c=camp();await patch(`/api/campaigns/${c.id}`,{stopCompany:!c.stopCompany});await refresh()},
  toggleOnly:(d,el)=>el.classList.toggle('on'),
  day:async d=>{const c=camp();const days=[...c.schedule.days];days[+d.i]=days[+d.i]?0:1;await patch(`/api/campaigns/${c.id}`,{schedule:{days}});await refresh()},
+ schedDays:async d=>{const c=camp();await patch(`/api/campaigns/${c.id}`,{schedule:{days:d.d==='all'?[1,1,1,1,1,1,1]:[1,1,1,1,1,0,0]}});await refresh();toast('Zeitplan gespeichert')},
+ schedMode:async d=>{const c=camp();const sc=c.schedule,on=d.m==='all';await patch(`/api/campaigns/${c.id}`,{schedule:on?{allDay:true}:{allDay:false,...(sc.from===sc.to?{from:'08:00',to:'16:30'}:{})}});await refresh();toast(on?'Rund um die Uhr aktiviert':'Bestimmte Uhrzeiten aktiviert')},
+ schedPreset:async d=>{const c=camp();await patch(`/api/campaigns/${c.id}`,{schedule:{from:d.f,to:d.t,allDay:false}});await refresh();toast('Zeitplan gespeichert')},
  import:()=>importModal(),importRun,
  setTab:d=>{S.settingsTab=d.k;render(true)},
  saveWs:async()=>{await patch('/api/settings',{company:$('#setCompany').value,timezone:$('#setTz').value});await refresh();toast('Gespeichert')},
@@ -740,7 +755,7 @@ document.addEventListener('input',e=>{const t=e.target;
   st[b]=t.value;refreshPreview();const sub=document.querySelectorAll('.tl-step .sub')[S.step];if(sub&&b==='subject')sub.textContent=t.value;saveSteps()}
 });
 document.addEventListener('change',async e=>{const t=e.target;const c=S.camp&&camp();
- if(t.dataset.sched&&c){const v=t.type==='number'?+t.value:t.value;await patch(`/api/campaigns/${c.id}`,{schedule:{[t.dataset.sched]:v}});await refresh(false);toast('Zeitplan gespeichert')}
+ if(t.dataset.sched&&c){const k=t.dataset.sched,v=t.type==='number'?+t.value:t.value;if(t.type==='time'&&!/^\d\d:\d\d$/.test(v))return;await patch(`/api/campaigns/${c.id}`,{schedule:{[k]:v}});await refresh(k==='from'||k==='to'||k==='timezone');toast('Zeitplan gespeichert')}
  if(t.dataset.campfield&&c){await patch(`/api/campaigns/${c.id}`,{[t.dataset.campfield]:t.type==='number'?+t.value:t.value});await refresh();toast('Gespeichert')}
 });
 addEventListener('resize',()=>{if(tourI>=0)tour(tourI)});

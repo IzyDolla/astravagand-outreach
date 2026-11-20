@@ -193,6 +193,9 @@ a{color:var(--violet2);text-decoration:none}
 .chip:hover{border-style:solid}
 .daychip{width:40px;height:36px;border-radius:9px;border:1px solid var(--border);display:grid;place-items:center;font-weight:600;cursor:pointer;color:var(--muted);background:var(--surface2)}
 .daychip.on{background:var(--vsoft);border-color:var(--vline);color:var(--text)}
+.sched-now{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;margin-bottom:16px}
+.sched-now .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+.sched-now.on{color:var(--text)}.sched-now.on .dot{background:var(--ok,#22c55e);box-shadow:0 0 0 3px rgba(34,197,94,.18)}
 
 /* Sequence editor */
 .seq{display:grid;grid-template-columns:300px 1fr;gap:20px;align-items:start}
