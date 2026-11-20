@@ -31,7 +31,7 @@ async function authenticate(req, ctx) {
   const mfaEnabled = (data.user.factors || []).some(f => f.status === 'verified');
   ctx.mfaEnabled = mfaEnabled;
   if (mfaEnabled && claims.aal !== 'aal2') { ctx.mfaNeeded = true; return; }
-  ctx.user = data.user;
+  ctx.user = data.user; ctx.aal = claims.aal;
   const mems = await q(sb().from('members').select('ws_id,role').eq('user_id', data.user.id));
   if (!mems.length) return;
   const prof = await q(sb().from('profiles').select('current_ws').eq('user_id', data.user.id).maybeSingle());
