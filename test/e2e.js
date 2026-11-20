@@ -42,6 +42,8 @@ const ok = (name, cond) => { console.log((cond ? '  ✓ ' : '  ✗ ') + name); i
   r = await call('GET', '/api/leads?list=all'); ok('Leads-Liste', r.j.total === 4);
   // Kampagne
   r = await call('POST', '/api/campaigns', { name: 'Test', lists: [list] }); const camp = r.j.id; ok('Kampagne erstellt', r.j.ok);
+  ok('neue Kampagne startet mit fertiger Vorlage', fake.db.campaigns.find(c => c.id === camp).steps[0].body.startsWith('{Anrede},'));
+  await call('PATCH', `/api/campaigns/${camp}`, { steps: [{ subject: 'x', body: 'Hallo {Vorname},\n\n[Dein Angebot in 2–3 Sätzen]' }] });
   r = await call('POST', `/api/campaigns/${camp}/start`); ok('Start mit Platzhalter blockiert', !r.j.ok && r.j.checks.some(c => /Platzhalter/.test(c.text)));
   r = await call('PATCH', `/api/campaigns/${camp}`, { steps: [{ subject: 'Frage zu {Firma}', body: 'Hallo {Vorname},\n\nTest.\n\n{Absender}' }, { wait: 2, thread: true, body: 'Hallo {Vorname}, nachgehakt.' }], schedule: { days: [1, 1, 1, 1, 1, 1, 1], from: '00:00', to: '23:59', minGap: 0, maxGap: 0 } });
   r = await call('POST', `/api/campaigns/${camp}/start`); ok('Start ok', r.j.ok); ok('4 Enrollments', fake.db.enrollments.length === 4);
