@@ -431,7 +431,7 @@ async function openFinderLead(id){
 function finderImportModal(ids,all){
  const n=all?FS.total:ids.length;const withMail=all?null:FS.rows.filter(r=>ids.includes(r.id)&&r.email).length;
  const job=FS.jobs.find(j=>j.id===FS.job);
- modal(`${mh('In Leadliste übernehmen',`${fmt(n)} Firma${n===1?'':'en'} ausgewählt${withMail!=null?` · ${fmt(withMail)} mit E-Mail`:''}`)}<div class="modal-b">
+ modal(`${mh('In Leadliste übernehmen',`${fmt(n)} ${n===1?'Firma':'Firmen'} ausgewählt${withMail!=null?` · ${fmt(withMail)} mit E-Mail`:''}`)}<div class="modal-b">
   <div class="field"><label>Leadliste</label><select class="select" id="fiList"><option value="new">+ Neue Liste</option>${C.lists.map(l=>`<option value="${l.id}">${esc(l.name)} (${l.count})</option>`).join('')}</select></div>
   <div class="field" id="fiNameF"><label>Name der neuen Liste</label><input class="input" id="fiName" value="${esc(job?job.label:'Lead-Finder '+new Date().toLocaleDateString('de-AT'))}"></div>
   <label class="row gap" style="margin:4px 0 14px;cursor:pointer;align-items:flex-start"><input type="checkbox" class="cb" id="fiCamp" checked style="margin-top:2px"><span><b>Direkt startklare Kampagne anlegen</b><span class="muted" style="display:block;font-size:12.5px;margin-top:2px">Mit der passenden Branchen-Vorlage (3 Schritte), allen aktiven Postfächern und Versand Mo–Fr 8–16:30 Uhr. Du musst danach nur noch auf Start drücken.</span></span></label>
@@ -924,7 +924,7 @@ Object.assign(A,{
  fGoList:d=>{closeModal();closePanel();S.leadList=d.id||'all';go('leads')},
  fGoCamp:async d=>{closeModal();closePanel();await refresh(false);A.openCamp({id:d.id})},
  fRecrawl:async d=>{const ids=d.one?[d.one]:[...FS.sel];const j=await post('/api/finder/results/recrawl',{ids});if(!j.ok)return toast(esc(j.error),'bad');toast(`${ids.length} Website${ids.length===1?'':'s'} werden neu geprüft`);closePanel();FS.sel.clear();loadFinder()},
- fDelSel:d=>{const ids=d.one?[d.one]:[...FS.sel];confirmModal(`${ids.length} Firma${ids.length===1?'':'en'} löschen?`,'Die Einträge verschwinden aus dem Lead-Finder. Bereits übernommene Leads bleiben in deinen Leadlisten.','Löschen',async()=>{await post('/api/finder/results/delete',{ids});closePanel();FS.sel.clear();toast('Gelöscht');loadFinder()})}
+ fDelSel:d=>{const ids=d.one?[d.one]:[...FS.sel];confirmModal(`${ids.length} ${ids.length===1?'Firma':'Firmen'} löschen?`,'Die Einträge verschwinden aus dem Lead-Finder. Bereits übernommene Leads bleiben in deinen Leadlisten.','Löschen',async()=>{await post('/api/finder/results/delete',{ids});closePanel();FS.sel.clear();toast('Gelöscht');loadFinder()})}
 });
 const finderSearch=debounce(()=>loadResults(true),300);
 document.addEventListener('input',e=>{if(e.target.id==='fQ'){FS.q=e.target.value;finderSearch()}});
