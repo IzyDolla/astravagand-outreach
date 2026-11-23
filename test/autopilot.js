@@ -209,5 +209,6 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   const goodMail = '{Anrede},\n\nsie decken vom Zählerschrank bis zur Ladeinfrastruktur für Unternehmen und öffentliche Einrichtungen in Berlin ziemlich viel ab.\n\nGerade bei Wallboxen kommen oft dieselben Fragen zu Förderung und Ablauf. Bei Ihnen laufen Anfragen über Telefon und E-Mail – wie halten Sie das am Laufen, wenn Sie gerade beim Kunden sind?\n\nWir bauen für Betriebe wie {Firma} einen digitalen Assistenten, der solche Anfragen rund um die Uhr annimmt und Ihnen gesammelt schickt.\n\nWäre das für Sie interessant?\n\nBeste Grüße\n{Absender}';
   ok('Prüfregel: zugeschnittene Mail wird angenommen', AI.checkPersonal(tplH, [{ subject: 'Anfragen zur Ladeinfrastruktur', body: goodMail }], ctxH).length === 0);
 
+  ok('Großschreibung: „Sie“ und Firmenname am Absatzanfang', AI.fixCase('{Anrede},\n\nsie betreuen.\n\nim Handwerk', 'X').startsWith('{Anrede},\n\nSie betreuen.\n\nIm Handwerk') && AI.fixCase('{Anrede},\n\npmw elektro plant.', 'Pmw Elektro GmbH').includes('Pmw Elektro plant') && AI.fixCase('{Anrede},\n\nbei Ihnen läuft viel.', 'X').includes('bei Ihnen'));
   console.log(`\nautopilot: ${good} ok, ${bad} fehlgeschlagen`); process.exit(bad ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
