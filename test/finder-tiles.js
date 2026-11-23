@@ -54,6 +54,12 @@ let bad = 0; const ok = (n, c) => { console.log((c ? '  ✓ ' : '  ✗ ') + n); 
   for (let i = 0; i < 10; i++) { await F.process(Date.now() + 12000, ws, j3.id); const st = fake.db.finder_jobs.find(j => j.id === j3.id).status; if (st !== 'queued' && st !== 'searching') break; }
   const r3 = fake.db.finder_results.filter(r => r.job_id === j3.id);
   ok(`stoppt beim Ziel (150): ${r3.length}`, r3.length === 150);
+  // 3b) Weitersuchen im selben Auftrag (Ziel erhöht): macht an der gespeicherten Stelle weiter
+  const c3 = fake.db.finder_jobs.find(j => j.id === j3.id); const callsBefore = c3.cursor.calls;
+  Object.assign(c3, { max_results: 400, status: 'queued', next_try_at: new Date(0).toISOString(), attempts: 0 });
+  for (let i = 0; i < 10; i++) { await F.process(Date.now() + 12000, ws, j3.id); const st = fake.db.finder_jobs.find(j => j.id === j3.id).status; if (st !== 'queued' && st !== 'searching') break; }
+  const r3b = fake.db.finder_results.filter(r => r.job_id === j3.id);
+  ok(`weitergesucht bis 400 ohne Neustart (${r3b.length}, ${c3.cursor.calls - callsBefore} weitere Abfragen)`, r3b.length === 400 && new Set(r3b.map(r => r.ext_id)).size === 400 && c3.cursor.calls - callsBefore < 60);
   // 4) Automodus: bereits gefundene Firmen werden nicht noch einmal aufgenommen
   const j4 = await mk(1000, { autopilot_id: '22222222-2222-4222-8222-222222222222' });
   for (let i = 0; i < 20; i++) { await F.process(Date.now() + 12000, ws, j4.id); const st = fake.db.finder_jobs.find(j => j.id === j4.id).status; if (st !== 'queued' && st !== 'searching') break; }
