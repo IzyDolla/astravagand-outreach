@@ -15,7 +15,7 @@ global.fetch = async (url, opts) => {
   aiCalls++;
   const b = JSON.parse(opts.body), sys = b.messages[0].content;
   let content = '{}';
-  if (/Kaltakquise-Sequenz an EINE/.test(sys)) {
+  if (/Kaltakquise-Sequenz (an|für) EINE/.test(sys)) {
     const crit = aiMode === 'critic' && aiCalls % 2 === 1;
     content = JSON.stringify({ steps: [
       { subject: 'Kurz zu Ihren Terminen', body: `{Anrede},\n\n${crit ? 'Auf Ihrer Website fehlt eine Online-Buchung.' : 'Sie betreuen Kunden in Wien seit vielen Jahren.'}\n\nWie laufen bei Ihnen eigentlich Terminanfragen – eher telefonisch?\n\nBeste Grüße\n{Absender}` },
@@ -200,7 +200,14 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   ok('Prüfregel: Kritik-Wort', AI.checkPersonal(tpl, [{ subject: 'a', body: '{Anrede},\n\nIhre Website ist veraltet.\n\nGrüße\n{Absender}' }]).length > 0);
   ok('Prüfregel: fehlende {Anrede}', AI.checkPersonal(tpl, [{ subject: 'a', body: 'Hallo,\n\nText.\n\nGrüße\n{Absender}' }]).length > 0);
   ok('Prüfregel: erfundener Platzhalter', AI.checkPersonal(tpl, [{ subject: 'a', body: '{Anrede},\n\n{Umsatz} Text.\n\nGrüße\n{Absender}' }]).length > 0);
-  ok('Prüfregel: sauberer Text ok', AI.checkPersonal(tpl, [{ subject: 'a', body: '{Anrede},\n\nText.\n\nGrüße\n{Absender}' }]).length === 0);
+  ok('Prüfregel: sauberer Text ok', AI.checkPersonal(tpl, [{ subject: 'a', body: '{Anrede},\n\nText. Wie machen Sie das?\n\nGrüße\n{Absender}' }]).length === 0);
+  const tplH = [{ subject: 'x', body: '{Anrede},\n\n{Einstieg}\n\nim Handwerk klingelt das Telefon meistens genau dann, wenn man auf der Baustelle steht. Viele Kunden rufen dann einfach den nächsten Betrieb an.\n\nWir bauen für Betriebe wie {Firma} einen digitalen Assistenten, der Anrufe und Anfragen annimmt.\n\nWäre so etwas für Sie interessant?\n\nBeste Grüße\n{Absender}' }];
+  const ctxH = 'Zertifizierter Elektromeisterbetrieb für Elektroinstallationen, Reparaturen, Wartung und Ladeinfrastruktur. Betreut Unternehmen, Wohnumfeld und öffentliche Einrichtungen. Anfragen außerhalb der Zeiten Wiederkehrende Fragen Wallbox Zählerschränke Tankstellentechnik';
+  const lazy = '{Anrede},\n\nIhre Website stellt den Elektromeisterbetrieb mit Leistungen für Zählerschränke klar in den Mittelpunkt.\n\nIm Handwerk klingelt das Telefon meistens genau dann, wenn man auf der Baustelle steht. Viele Kunden rufen dann einfach den nächsten Betrieb an.\n\nWir bauen für Betriebe wie {Firma} einen digitalen Assistenten, der Anrufe und Anfragen annimmt.\n\nWäre so etwas für Sie interessant?\n\nBeste Grüße\n{Absender}';
+  const errsLazy = AI.checkPersonal(tplH, [{ subject: 'a', body: lazy }], ctxH);
+  ok('Prüfregel: Vorlage mit einem Satz davor wird abgelehnt', errsLazy.some(e => /wörtlich aus der Vorlage/.test(e)) && errsLazy.some(e => /Beschreibung der Website/.test(e)));
+  const goodMail = '{Anrede},\n\nsie decken vom Zählerschrank bis zur Ladeinfrastruktur für Unternehmen und öffentliche Einrichtungen in Berlin ziemlich viel ab.\n\nGerade bei Wallboxen kommen oft dieselben Fragen zu Förderung und Ablauf. Bei Ihnen laufen Anfragen über Telefon und E-Mail – wie halten Sie das am Laufen, wenn Sie gerade beim Kunden sind?\n\nWir bauen für Betriebe wie {Firma} einen digitalen Assistenten, der solche Anfragen rund um die Uhr annimmt und Ihnen gesammelt schickt.\n\nWäre das für Sie interessant?\n\nBeste Grüße\n{Absender}';
+  ok('Prüfregel: zugeschnittene Mail wird angenommen', AI.checkPersonal(tplH, [{ subject: 'Anfragen zur Ladeinfrastruktur', body: goodMail }], ctxH).length === 0);
 
   console.log(`\nautopilot: ${good} ok, ${bad} fehlgeschlagen`); process.exit(bad ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

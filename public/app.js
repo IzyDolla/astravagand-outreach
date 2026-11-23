@@ -351,7 +351,7 @@ function campSenders(c){
 function campSettings(c){
  const row=(on,l,h,act)=>`<div style="padding:14px 0;border-bottom:1px solid var(--border)"><div class="toggle ${on?'on':''}" ${act?`data-act="${act}"`:'style="cursor:default;opacity:.75"'}><span class="sw"></span>${l}</div><div class="muted" style="font-size:12px;margin:4px 0 0 46px">${h}</div></div>`;
  return `<div class="grid g2" style="align-items:start"><div class="card" style="padding:8px 22px 14px">${row(1,'Bei Antwort stoppen','Sobald der Lead antwortet, bekommt er keine Follow-ups mehr. (Immer aktiv)')}${row(1,'Abwesenheitsnotizen erkennen','Automatische Antworten stoppen die Sequenz nicht und landen im Ordner „Abwesend“.')}${row(1,'Abmeldungen erkennen','Antwortet jemand mit „Abmelden“, wird er gestoppt und kommt auf die Sperrliste.')}${row(c.stopCompany,'Ganze Firma stoppen','Antwortet jemand von @firma.at, bekommen Kollegen derselben Firma keine Mails mehr.','toggleCompany')}${row(0,'Öffnungen tracken','Bewusst nicht eingebaut: ungenau (Apple Mail), schadet der Zustellbarkeit, im DACH-Raum einwilligungspflichtig.')}</div>
- <div class="card" style="padding:20px"><div class="field"><label>Name der Kampagne</label><input class="input" value="${esc(c.name)}" data-campfield="name"></div><div class="row gap mt"><button class="btn danger" data-act="delCamp">${ic('trash')}Kampagne löschen</button></div><p class="muted" style="font-size:12px;margin-top:10px">Löschen entfernt auch den Verlauf dieser Kampagne. Leads bleiben in ihren Listen.</p></div> <div class="card" style="padding:8px 22px 18px;grid-column:1/-1">${row(c.personalize,'KI schreibt jede Mail persönlich','Die Vorlage bleibt das Gerüst. Die KI baut pro Firma 1–2 Details aus dem Firmencheck ein (Kurzprofil, Ansatzpunkte, Website-Check) – nie als Kritik formuliert. Klappt es nicht, wird die Vorlage verwendet.','togglePers')}${c.personalize?`<div class="row gap" style="margin:12px 0 0 46px"><span class="muted" style="font-size:12.5px">Die ersten</span><input class="input" type="number" min="0" max="200" value="${c.reviewFirst}" data-campfield="reviewFirst" style="width:80px"><span class="muted" style="font-size:12.5px">Mails selbst freigeben, bevor sie rausgehen (0 = keine Freigabe)</span></div>`:''}</div></div>`;
+ <div class="card" style="padding:20px"><div class="field"><label>Name der Kampagne</label><input class="input" value="${esc(c.name)}" data-campfield="name"></div><div class="row gap mt"><button class="btn danger" data-act="delCamp">${ic('trash')}Kampagne löschen</button></div><p class="muted" style="font-size:12px;margin-top:10px">Löschen entfernt auch den Verlauf dieser Kampagne. Leads bleiben in ihren Listen.</p></div> <div class="card" style="padding:8px 22px 18px;grid-column:1/-1">${row(c.personalize,'KI schreibt jede Mail persönlich','Die KI schneidet jede Mail auf die Firma zu: Schwerpunkt, Kunden und wo dein Angebot bei ihr konkret hilft (aus dem Firmencheck) – als Frage, nie als Kritik. Die Vorlage gibt Idee und Ablauf vor. Klappt es nicht, wird die Vorlage verwendet.','togglePers')}${c.personalize?`<div class="row gap" style="margin:12px 0 0 46px"><span class="muted" style="font-size:12.5px">Die ersten</span><input class="input" type="number" min="0" max="200" value="${c.reviewFirst}" data-campfield="reviewFirst" style="width:80px"><span class="muted" style="font-size:12.5px">Mails selbst freigeben, bevor sie rausgehen (0 = keine Freigabe)</span></div>`:''}</div></div>`;
 }
 function campStats(c){
  const st=c.stats.steps;const max=Math.max(1,...st.map(s=>s.sent?s.replies/s.sent*100:0));
@@ -443,7 +443,7 @@ V.finder=()=>{
   <div class="field"><label>Suchbegriff <span class="faint">(optional)</span></label><input class="input" id="fKw" placeholder="z. B. Gebäudereinigung" value="${esc(L.keyword)}"></div>
   <div class="field"><label>Ort</label><input class="input" id="fLoc" placeholder="Stadt oder PLZ" value="${esc(L.location)}"></div>
   <div class="field"><label>Umkreis</label><select class="select" id="fRad">${[5,10,15,25,50].map(r=>`<option value="${r}" ${+L.radius===r?'selected':''}>${r} km</option>`).join('')}</select></div>
-  <div class="field"><label>Max. Firmen</label><select class="select" id="fMax">${[50,100,200,300].map(r=>`<option value="${r}" ${+L.max===r?'selected':''}>${r}</option>`).join('')}</select></div>
+  <div class="field"><label>Max. Firmen</label><select class="select" id="fMax">${[50,100,300,500,1000,2000].map(r=>`<option value="${r}" ${+L.max===r?'selected':''}>${r}</option>`).join('')}</select></div>
   ${g?`<div class="field"><label>Quelle</label><select class="select" id="fSrc"><option value="google">Google Maps</option><option value="osm">OpenStreetMap</option></select></div>`:''}
   <button class="btn primary lf-go" data-act="fSearch" id="fGo" ${FS.searching?'disabled':''}>${FS.searching?spinner+'Suche läuft …':ic('search',2)+'Firmen suchen'}</button></div>
   ${m&&!g?`<div class="lf-hint">${ics('info',14)}<span>Quelle ist gerade OpenStreetMap (kostenlos, aber lückenhaft). Mit einem Google-Maps-Schlüssel findest du ein Vielfaches an Firmen.</span></div>`:''}</div>
@@ -459,7 +459,7 @@ V.finder=()=>{
 function jobsHtml(){
  if(!FS.jobs.length)return `<div class="empty" style="padding:30px 14px;font-size:12.5px">${ics('radar',22)}<p style="margin-top:8px">Noch keine Suche. Branche und Ort wählen und los.</p></div>`;
  const all=FS.jobs.reduce((a,j)=>a+j.total,0);
- return `<div class="lf-job ${FS.job==='all'?'on':''}" data-act="fJob" data-id="all"><div class="t">${ics('users',14)}<b>Alle Ergebnisse</b><span class="count">${fmt(all)}</span></div></div>`+FS.jobs.map(j=>{const st=JSTAT[j.status]||JSTAT.done;const prog=j.status==='crawling'&&j.withWebsite?Math.round(j.crawled/j.withWebsite*100):j.status==='done'?100:0;
+ return `<div class="lf-job ${FS.job==='all'?'on':''}" data-act="fJob" data-id="all"><div class="t">${ics('users',14)}<b>Alle Ergebnisse</b><span class="count">${fmt(all)}</span></div></div>`+FS.jobs.map(j=>{const st=j.status==='queued'&&j.total?['Suche läuft – Teilgebiet für Teilgebiet …','b-info']:JSTAT[j.status]||JSTAT.done;const prog=j.status==='crawling'&&j.withWebsite?Math.round(j.crawled/j.withWebsite*100):j.status==='done'?100:0;
   return `<div class="lf-job ${FS.job===j.id?'on':''}" data-act="fJob" data-id="${j.id}"><div class="t"><b title="${esc(j.label)}">${esc(j.keyword||(FS.meta?.categories.find(c=>c.key===j.category)||{}).label||'Suche')}</b><span class="count">${fmt(j.total)}</span></div>
   <div class="s">${esc(j.location)} · ${j.radius} km · ${j.source==='google'?'Google':'OSM'} · ${when(j.createdAt)}</div>
   ${j.status==='done'?`<div class="s"><span style="color:var(--good)">${fmt(j.withEmail)} E-Mails</span> · ${fmt(j.withPhone)} Telefon</div>${j.aiPending?`<div class="s" style="color:var(--violet2)">${ics('sparkle',12)} Firmencheck läuft: ${fmt(j.aiDone)} von ${fmt(j.aiDone+j.aiPending)}</div><div class="prog"><i style="width:${Math.round(j.aiDone/(j.aiDone+j.aiPending)*100)}%"></i></div>`:j.aiDone?`<div class="s">${ics('sparkle',12)} ${fmt(j.aiDone)} Firmen geprüft</div>`:''}`:j.status==='error'?`<div class="s" style="color:var(--bad)">${esc(j.error||'Fehler')}</div><button class="btn sm mt-s" data-act="fRetry" data-id="${j.id}">${ic('refresh')}Erneut versuchen</button>`:`<div class="s">${spinner}<span>${st[0]}${j.status==='crawling'?` ${j.crawled}/${j.withWebsite}`:''}</span></div>${j.status==='queued'&&j.error?`<div class="s faint">${esc(j.error)} – neuer Versuch läuft automatisch</div>`:''}<div class="prog"><i style="width:${Math.max(4,prog)}%"></i></div>`}
@@ -1186,11 +1186,30 @@ async function autoLoad(){const j=await get('/api/autopilots');if(j.ok){AU.list=
 function autoEnter(){if(!AU.list){autoLoad().then(()=>{if(S.view==='auto')drawAuto()})}else drawAuto();autoPump()}
 function drawAuto(){const el=$('#content');if(el&&S.view==='auto'){const sc=el.scrollTop;el.innerHTML=V.auto();el.scrollTop=sc}}
 // Solange die Detailseite eines laufenden Automodus offen ist: direkt weiterarbeiten lassen
+// Anzeige alle 4 s nachladen (unabhängig vom Arbeits-Aufruf, der bis zu 50 s dauern kann)
+let apPollT=null;
+function apPoll(){
+ clearTimeout(apPollT);
+ apPollT=setTimeout(async()=>{
+  if(S.view!=='auto')return;
+  const a=apCur();
+  if(!document.hidden){
+   const j=a?await get(`/api/autopilots/${a.id}`).catch(()=>null):AU.list&&AU.list.length?await autoLoad().catch(()=>null):null;
+   if(S.view!=='auto')return;
+   if(a&&j&&j.ok){const i=AU.list.findIndex(x=>x.id===a.id);if(i>=0&&JSON.stringify(AU.list[i])!==JSON.stringify(j.autopilot)){AU.list[i]=j.autopilot;if(!modalOpen())drawAuto()}}
+   else if(!a&&j&&j.ok&&!modalOpen())drawAuto();
+  }
+  apPoll();
+ },4000);
+}
 async function autoPump(){
+ apPoll();
  const my=++AU.loop;
  while(my===AU.loop&&S.view==='auto'&&!document.hidden){
   const a=apCur();if(!a||a.status!=='active'){await new Promise(r=>setTimeout(r,8000));if(my!==AU.loop||S.view!=='auto')return;if(!a){await autoLoad();drawAuto()}continue}
+  AU.stepping=true;if(!modalOpen())drawAuto();
   const j=await post(`/api/autopilots/${a.id}/step`,{}).catch(()=>null);
+  AU.stepping=false;
   if(my!==AU.loop||S.view!=='auto')return;
   if(j&&j.ok){const i=AU.list.findIndex(x=>x.id===a.id);if(i>=0)AU.list[i]=j.autopilot;if(!modalOpen())drawAuto()}
   await new Promise(r=>setTimeout(r,3000));
@@ -1207,28 +1226,43 @@ V.auto=()=>{
  return `<div class="wrap">${head}<div class="grid g2">${AU.list.map(a=>{const st=a.stats;return `<div class="card ap-card" data-act="apOpen" data-id="${a.id}">
   <div class="row" style="justify-content:space-between;gap:10px"><div style="min-width:0"><b class="ap-title">${esc(a.name)}</b><div class="muted" style="font-size:12.5px;margin-top:2px">${esc(apWhat(a))} · ${a.locations.length} Ort${a.locations.length===1?'':'e'} · ${a.radius} km</div></div><span class="badge ${a.status==='active'?'b-good':'b-mute'}">${a.status==='active'?'Läuft':'Pausiert'}</span></div>
   <div class="ap-mini">${[['Gefunden',st.found],['In Kampagne',st.imported],['Gesendet',st.sentTotal],['Antworten',st.replied]].map(([l,v])=>`<div><span>${l}</span><b>${fmt(v)}</b></div>`).join('')}</div>
+  ${st.live&&st.live.headline&&a.status==='active'?`<div class="ap-now">${st.live.headline.state==='active'?'<span class="ap-pulse sm"></span>':apDot(st.live.headline.state)}<span>${esc(st.live.headline.text)}</span></div>`:''}
   ${st.review?`<div class="ap-flag">${ics('sparkle',14)}${st.review} Mail${st.review>1?'s':''} warten auf Freigabe</div>`:a.state.needMore?`<div class="ap-flag warn">${ics('alert',14)}Weitere Orte nötig</div>`:''}</div>`}).join('')}</div></div>`;
 };
 function autoDetail(a){
  const st=a.stats,s=a.settings;
- const stages=[['radar','Gefunden',st.found,`${fmt(st.withEmail)} mit E-Mail`],['sparkle','Firmencheck',st.checking?st.checking:'✓',st.checking?'wird geprüft':'aktuell nichts offen'],['users','In der Kampagne',st.imported,`${fmt(st.pending)} warten auf Mail 1`],['edit','Persönlich geschrieben',st.preparing+st.review,s.personalize?`${st.preparing} in Arbeit · ${st.review} zur Freigabe`:'aus – Vorlage'],['send','Verschickt',st.sentTotal,`heute ${st.sentToday} · ${st.followups} Follow-ups offen`],['inbox','Antworten',st.replied,`${st.positive} interessiert · ${st.unsub} abgemeldet`]];
+ const L=st.live||{phases:{}},ph=L.phases||{};
+ const stages=[['search','radar','Gefunden',st.found,`${fmt(st.withEmail)} mit E-Mail`],['check','sparkle','Firmencheck',st.checked,'Impressum und Website'],['import','users','In der Kampagne',st.imported,`${fmt(st.pending)} warten auf Mail 1`],['write','edit','Persönlich geschrieben',st.written,s.personalize?`${st.review} zur Freigabe`:'aus – Vorlage'],['send','send','Verschickt',st.sentTotal,`heute ${st.sentToday} · ${st.followups} Follow-ups offen`],['reply','inbox','Antworten',st.replied,`${st.positive} interessiert · ${st.unsub} abgemeldet`]];
  const log=(a.log||[]).map(l=>`<div class="ap-log ${l.kind||''}"><span>${dt(l.at)}</span><div>${esc(l.text)}</div></div>`).join('');
  return `<div class="wrap"><button class="btn sm ghost" data-act="apBack" style="margin-bottom:14px">${ic('back')}Alle Automodi</button>
- <div class="page-head"><div><div class="row gap"><h1>${esc(a.name)}</h1><span class="badge ${a.status==='active'?'b-good':'b-mute'}">${a.status==='active'?'Läuft':'Pausiert'}</span></div><p>${esc(apWhat(a))}, ${a.locations.length} Ort${a.locations.length===1?'':'e'}, ${a.radius} km Umkreis, bis zu ${s.dailyNew} neue Firmen pro Tag, ${esc((AP_SCHED[apSchedKey(s.schedule)]||[schedTxt(s.schedule)])[0])}.</p></div>
+ <div class="page-head"><div><div class="row gap"><h1>${esc(a.name)}</h1><span class="badge ${a.status==='active'?'b-good':'b-mute'}">${a.status==='active'?'Läuft':'Pausiert'}</span></div><p>${esc(apWhat(a))}, ${a.locations.length} Ort${a.locations.length===1?'':'e'}, ${a.radius} km Umkreis, Ziel ${fmt(s.goal)} Firmen, ${s.dailyNew} neue pro Tag, ${esc((AP_SCHED[apSchedKey(s.schedule)]||[schedTxt(s.schedule)])[0])}.</p></div>
   <div class="row gap" style="flex-wrap:wrap"><button class="btn" data-act="apEdit">${ic('gear')}Einstellungen</button>${a.campaignId?`<button class="btn" data-act="openCamp" data-id="${a.campaignId}">${ic('send')}Kampagne</button>`:''}${a.status==='active'?`<button class="btn" data-act="apPause">${ic('pause')}Pausieren</button>`:`<button class="btn primary" data-act="apStart">${ic('play')}${a.campaignId?'Fortsetzen':'Starten'}</button>`}</div></div>
  ${a.state.needMore?`<div class="banner" style="border-color:rgba(245,185,66,.4)">${ic('alert')}<div><b>Keine neuen Firmen mehr in deinen Orten.</b> <span class="muted">Füge weitere Orte hinzu, dann sucht der Automodus weiter.</span></div><button class="btn sm" style="margin-left:auto" data-act="apEdit">Orte hinzufügen</button></div>`:''}
  ${a.state.noAccounts?`<div class="banner" style="border-color:rgba(242,119,122,.4)">${ic('alert')}<div><b>Kein verbundenes Absender-Konto.</b> <span class="muted">Es wird nichts verschickt.</span></div><button class="btn sm" style="margin-left:auto" data-act="go" data-view="accounts">Konten</button></div>`:''}
- <div class="card ap-pipe">${stages.map(([i,l,v,sub],n)=>`<div class="ap-stage"><div class="ap-stage-h">${ics(i,15)}<span>${l}</span></div><b>${typeof v==='number'?fmt(v):v}</b><small>${sub}</small></div>`).join('')}</div>
+ ${apLive(a)}
+ <div class="card ap-pipe">${stages.map(([k,i,l,v,sub])=>{const p=ph[k];return `<div class="ap-stage ${p?'is-'+p.state:''}"><div class="ap-stage-h">${ics(i,15)}<span>${l}</span></div><b>${fmt(v)}</b><small>${sub}</small>${p?`<div class="ap-ph">${apDot(p.state)}<span>${esc(p.text)}</span></div>${p.state==='active'?apBar(p.progress):''}`:''}</div>`}).join('')}</div>
  <div class="grid g2 mt" style="align-items:start">
   <div class="card"><div class="card-h"><h3>Freigabe</h3>${st.review?`<button class="btn sm primary" data-act="reviewOpen" data-ap="${a.id}">${st.review} prüfen</button>`:''}</div><div class="card-b">${st.review?`<p class="muted" style="font-size:13px">Die KI hat ${st.review} persönliche Mail${st.review>1?'s':''} geschrieben, die auf dich warten. Du siehst jede mit dem Firmencheck daneben, kannst sie ändern, freigeben, durch die Vorlage ersetzen oder die Firma überspringen.</p>`:`<p class="muted" style="font-size:13px">${s.personalize?(s.reviewFirst?`Die ersten ${s.reviewFirst} persönlichen Mails warten auf deine Freigabe – danach geht es automatisch.`:'Keine Freigabe eingestellt – persönliche Mails gehen direkt raus.'):'Personalisierung ist aus – es wird die Vorlage verschickt.'}</p>`}
-   <div class="ap-buffer">${(()=>{const b=a.state.buffer||{};return b.target?`<div class="row" style="justify-content:space-between;font-size:12.5px"><span class="muted">Vorrat für die nächsten ${s.bufferDays} Tage</span><b>${fmt((b.pending||0)+(b.pipeline||0))} / ${fmt(b.target)}</b></div><div class="prog" style="margin-top:6px"><i style="width:${Math.min(100,((b.pending||0)+(b.pipeline||0))/b.target*100)}%"></i></div>`:''})()}</div></div></div>
+   <div class="ap-buffer"><div class="row" style="justify-content:space-between;font-size:12.5px"><span class="muted">Firmen in der Kampagne (Ziel)</span><b>${fmt(st.imported)} / ${fmt(s.goal)}</b></div><div class="prog" style="margin-top:6px"><i style="width:${Math.min(100,st.imported/Math.max(1,s.goal)*100)}%"></i></div></div></div></div>
   <div class="card"><div class="card-h"><h3>Orte</h3><button class="btn sm ghost" data-act="apEdit">${ic('plus',2)}Orte</button></div><div class="card-b" style="padding-top:6px">${a.locations.map(l=>`<div class="ap-loc"><span>${esc(l.name)}</span><span class="muted" style="font-size:12px">${l.found?fmt(l.found)+' Firmen'+(l.withEmail?`, ${fmt(l.withEmail)} mit E-Mail`:''):''}</span><span class="badge ${AP_STATE[l.state][1]}">${AP_STATE[l.state][0]}</span></div>`).join('')}</div></div>
  </div>
  <div class="card mt"><div class="card-h"><h3>Protokoll</h3><span class="muted" style="font-size:12px">${a.status==='active'?'aktualisiert sich von selbst':''}</span></div><div class="card-b" style="padding-top:8px">${log||'<p class="muted">Noch keine Einträge.</p>'}</div></div>
  <div class="row gap mt"><button class="btn sm ghost danger" data-act="apDel">${ic('trash')}Automodus löschen</button><span class="muted" style="font-size:12px">Kampagne, Leads und Versandverlauf bleiben erhalten.</span></div></div>`;
 }
+const AP_STAT={active:'läuft',done:'erledigt',wait:'wartet',warn:'Achtung',off:'aus',idle:'pausiert'};
+const apDot=st=>`<i class="ap-dot ${st}"></i>`;
+// Balken: mit Fortschritt als Füllstand, sonst als laufender Streifen (läuft beim Neuzeichnen nahtlos weiter)
+const apBar=p=>p!=null&&p>=0?`<div class="ap-bar"><i style="width:${Math.max(3,Math.min(100,p*100))}%"></i></div>`:`<div class="ap-bar ind"><i style="animation-delay:-${(Date.now()%1600)/1000}s"></i></div>`;
+function apLive(a){
+ const L=a.stats.live||{},h=L.headline;if(!h)return '';
+ const work=a.status==='active'&&(h.state==='active'||L.busy||AU.stepping);
+ const steps=[['search','Suchen'],['check','Prüfen'],['import','Übernehmen'],['write','Schreiben'],['review','Freigabe'],['send','Senden']];
+ return `<div class="card ap-live ${work?'on':''} st-${h.state}"><div class="ap-live-h">${work?'<span class="ap-pulse"></span>':apDot(h.state)}<div style="min-width:0;flex:1"><div class="ap-live-k">${work?'Jetzt':h.state==='wait'&&h.key==='review'?'Du bist dran':h.state==='idle'?'Pausiert':'Stand'}</div><div class="ap-live-t">${esc(h.text)}</div></div>${h.key==='review'?`<button class="btn sm primary" data-act="reviewOpen" data-ap="${a.id}">Freigeben</button>`:''}</div>
+  ${h.state==='active'?apBar(h.progress):work?apBar(null):''}
+  <div class="ap-steps">${steps.map(([k,l])=>{const p=(L.phases||{})[k]||{state:'off'};return `<div class="ap-step s-${p.state} ${h.key===k?'cur':''}" title="${esc(p.text||'')}">${apDot(p.state)}<span>${l}</span></div>`}).join('')}</div></div>`;
+}
 function apModal(a){
- const s=a?a.settings:{dailyNew:20,personalize:aiOn(),reviewFirst:10,schedule:AP_SCHED.office[1],accounts:[],templateId:null};
+ const s=a?a.settings:{goal:300,dailyNew:20,personalize:aiOn(),reviewFirst:10,schedule:AP_SCHED.office[1],accounts:[],templateId:null};
  const okA=C.accounts.filter(x=>x.status==='ok');const sel=new Set(s.accounts&&s.accounts.length?s.accounts:okA.map(x=>x.id));
  const groups=[...new Set(AU.cats.map(c=>c.group))];const cap=okA.filter(x=>sel.has(x.id)).reduce((t,x)=>t+x.limit,0);
  const seq=C.templates.filter(t=>t.type==='seq');
@@ -1238,11 +1272,12 @@ function apModal(a){
   ${a?'<p class="muted" style="font-size:12px;margin:-6px 0 12px">Branche und Quelle bleiben fest. Für eine andere Branche einen neuen Automodus anlegen.</p>':''}<div class="field"><label>Orte <span class="muted" style="font-weight:500">(einer pro Zeile – der Automodus arbeitet sie nacheinander ab)</span></label><textarea class="textarea" id="apLocs" style="min-height:90px" placeholder="Berlin&#10;Potsdam&#10;Oranienburg">${esc(a?a.locations.map(l=>l.name).join('\n'):'')}</textarea></div>
   <div class="grid g2" style="gap:14px"><div class="field"><label>Umkreis je Ort</label><div class="seg" id="apRad">${[10,25,50].map(r=>`<button class="${(a?a.radius:25)===r?'on':''}" data-act="apSeg" data-g="apRad" data-v="${r}">${r} km</button>`).join('')}</div></div>
   <div class="field"><label>Quelle</label><div class="seg" id="apSrc">${[['google','Google'],['osm','OpenStreetMap']].filter(([k])=>a?k===a.source:(k==='osm'||AU.sources.google)).map(([k,l])=>`<button class="${(a?a.source:(AU.sources.google?'google':'osm'))===k?'on':''}" data-act="apSeg" data-g="apSrc" data-v="${k}">${l}</button>`).join('')}</div></div></div>
-  <div class="grid g2" style="gap:14px"><div class="field"><label>Neue Firmen pro Tag</label><input class="input" type="number" min="1" max="300" id="apDaily" value="${s.dailyNew}"><span class="hint">Deine ausgewählten Konten schaffen heute zusammen ${cap} Mails (inkl. Follow-ups, Warm-up).</span></div>
+  <div class="field"><label>Wie viele Firmen insgesamt?</label><div class="row gap" style="flex-wrap:wrap"><div class="seg" id="apGoalSeg">${[100,300,500,1000,2000].map(n=>`<button class="${+s.goal===n?'on':''}" data-act="apGoal" data-v="${n}">${fmt(n)}</button>`).join('')}</div><input class="input" type="number" min="10" max="10000" id="apGoal" value="${s.goal||300}" style="width:110px"></div><span class="hint">So viele Firmen mit E-Mail holt der Automodus in die Kampagne – Ort für Ort, in Großstädten Teilgebiet für Teilgebiet. Verschickt wird trotzdem nur so viel, wie du pro Tag einstellst.</span></div>
+  <div class="grid g2" style="gap:14px"><div class="field"><label>Neue Firmen pro Tag anschreiben</label><input class="input" type="number" min="1" max="300" id="apDaily" value="${s.dailyNew}"><span class="hint">Deine ausgewählten Konten schaffen heute zusammen ${cap} Mails (inkl. Follow-ups, Warm-up).</span></div>
   <div class="field"><label>Versandzeit</label><div class="seg" id="apSched">${Object.entries(AP_SCHED).map(([k,[l]])=>`<button class="${apSchedKey(s.schedule)===k?'on':''}" data-act="apSeg" data-g="apSched" data-v="${k}">${l}</button>`).join('')}</div></div></div>
   <div class="field"><label>Absender-Konten</label><div class="row gap-s" style="flex-wrap:wrap" id="apAccs">${okA.map(x=>`<span class="daychip ${sel.has(x.id)?'on':''}" style="width:auto;padding:0 12px" data-act="apAcc" data-id="${x.id}">${esc(x.email)}</span>`).join('')||'<span class="muted">Noch kein verbundenes Konto.</span>'}</div></div>
   <div class="field"><label>Vorlage</label><select class="select" id="apTpl"><option value="">Automatisch passend zur Branche</option>${seq.map(t=>`<option value="${t.id}" ${s.templateId===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select></div>
-  <div class="ap-ki"><div class="toggle ${s.personalize?'on':''}" id="apPers" data-act="apToggle"><span class="sw"></span><b>Jede Mail persönlich schreiben</b></div><p class="muted">Die KI nimmt die Vorlage als Gerüst und baut 1–2 Details aus dem Firmencheck ein – nie als Kritik formuliert. Kosten: unter 1 Cent pro Firma.${aiOn()?'':' <b>KI ist noch nicht eingerichtet.</b>'}</p>
+  <div class="ap-ki"><div class="toggle ${s.personalize?'on':''}" id="apPers" data-act="apToggle"><span class="sw"></span><b>Jede Mail persönlich schreiben</b></div><p class="muted">Die KI schneidet jede Mail auf die Firma zu: was sie macht, für wen, und wo dein Angebot bei ihr konkret hilft – als Frage, nie als Kritik. Die Vorlage gibt Idee und Ablauf vor. Kosten: unter 1 Cent pro Firma.${aiOn()?'':' <b>KI ist noch nicht eingerichtet.</b>'}</p>
    <div class="row gap" style="margin-top:10px"><span class="muted" style="font-size:12.5px">Die ersten</span><input class="input" type="number" min="0" max="200" id="apReview" value="${s.reviewFirst}" style="width:80px"><span class="muted" style="font-size:12.5px">Mails selbst freigeben (0 = direkt senden)</span></div></div>
   <div id="apRes"></div></div>
   <div class="modal-f">${a?`<button class="btn ghost" data-act="closeModal">Abbrechen</button><button class="btn primary" data-act="apSave" data-id="${a.id}">${ic('check',2)}Speichern</button>`:`<button class="btn ghost" data-act="closeModal">Abbrechen</button><button class="btn" data-act="apSave" data-start="">Nur speichern</button><button class="btn primary" data-act="apSave" data-start="1">${ic('bolt')}Speichern und starten</button>`}</div>`,true);
@@ -1250,7 +1285,7 @@ function apModal(a){
 function apForm(){
  const segv=id=>(document.querySelector(`#${id} button.on`)||{}).dataset?.v;
  return {category:$('#apCat').value||null,keyword:$('#apKw').value.trim(),locations:$('#apLocs').value,radius:+segv('apRad')||25,source:segv('apSrc')||'google',
-  settings:{dailyNew:+$('#apDaily').value||20,schedule:(AP_SCHED[segv('apSched')]||AP_SCHED.office)[1],accounts:[...document.querySelectorAll('#apAccs .daychip.on')].map(x=>x.dataset.id),templateId:$('#apTpl').value||null,personalize:$('#apPers').classList.contains('on'),reviewFirst:+$('#apReview').value||0}};
+  settings:{goal:+$('#apGoal').value||300,dailyNew:+$('#apDaily').value||20,schedule:(AP_SCHED[segv('apSched')]||AP_SCHED.office)[1],accounts:[...document.querySelectorAll('#apAccs .daychip.on')].map(x=>x.dataset.id),templateId:$('#apTpl').value||null,personalize:$('#apPers').classList.contains('on'),reviewFirst:+$('#apReview').value||0}};
 }
 /* Freigabe-Fenster (Automodus und Kampagnen) */
 const RV={scope:null,items:[],i:0,tab:0,total:0};
@@ -1297,6 +1332,7 @@ Object.assign(A,{
  apBack:()=>{AU.sel=null;drawAuto()},
  apEdit:()=>apModal(apCur()),
  apSeg:d=>{document.querySelectorAll(`#${d.g} button`).forEach(b=>b.classList.toggle('on',b.dataset.v===d.v))},
+ apGoal:d=>{$('#apGoal').value=d.v;document.querySelectorAll('#apGoalSeg button').forEach(b=>b.classList.toggle('on',b.dataset.v===d.v))},
  apAcc:(d,el)=>{(el||document.querySelector(`#apAccs [data-id="${d.id}"]`)).classList.toggle('on')},
  apToggle:()=>$('#apPers').classList.toggle('on'),
  apSave:async d=>{
@@ -1320,3 +1356,4 @@ Object.assign(A,{
  togglePers:async()=>{const c=camp();await patch(`/api/campaigns/${c.id}`,{personalize:!c.personalize,...(!c.personalize&&!c.reviewFirst?{reviewFirst:10}:{})});await refresh();toast(c.personalize?'Personalisierung aus':'KI schreibt jetzt jede Mail persönlich')},
  setGreeting:async d=>{await patch('/api/settings',{greeting:d.g});await refresh(false);render(true);toast('Anrede gespeichert')}
 });
+document.addEventListener('input',e=>{if(e.target.id==='apGoal')document.querySelectorAll('#apGoalSeg button').forEach(b=>b.classList.toggle('on',b.dataset.v===String(+e.target.value)))});
