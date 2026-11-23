@@ -57,7 +57,8 @@ module.exports = async (req, res) => {
       const start = Date.now(), deadline = start + 45000, hard = start + 58000;
       try {
         const r = await C.tick(deadline);                                         // 1. Versand (Mail 1 + Follow-ups)
-        await C.pollDue(Math.min(deadline + 8000, Date.now() + 12000));            // 2. Antworten abrufen
+        await C.pollDue(Math.min(deadline + 8000, Date.now() + 12000));
+    await C.syncSigs().catch(() => {});            // 2. Antworten abrufen
         const AP = require('../lib/autopilot'), AIx = require('../lib/ai'), F = require('../lib/finder');
         const ap = await AP.run(Date.now() + 8000).catch(e => ({ apError: e.message }));   // 3. Automodus
         const ai = {};

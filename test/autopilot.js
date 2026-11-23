@@ -18,7 +18,7 @@ global.fetch = async (url, opts) => {
   if (/Kaltakquise-Sequenz (an|für) EINE/.test(sys)) {
     const crit = aiMode === 'critic' && aiCalls % 2 === 1;
     content = JSON.stringify({ steps: [
-      { subject: 'Kurz zu Ihren Terminen', body: `{Anrede},\n\n${crit ? 'Auf Ihrer Website fehlt eine Online-Buchung.' : 'Sie betreuen Kunden in Wien seit vielen Jahren.'}\n\nWie laufen bei Ihnen eigentlich Terminanfragen – eher telefonisch?\n\nBeste Grüße\n{Absender}` },
+      { subject: 'Kurz zu Ihren Terminen', body: `{Anrede},\n\n${crit ? 'Auf Ihrer Website fehlt eine Online-Buchung.' : 'ich habe gesehen, dass Sie Kunden in Wien seit vielen Jahren betreuen.'}\n\nWie laufen bei Ihnen eigentlich Terminanfragen – eher telefonisch?\n\nBeste Grüße\n{Absender}` },
       { subject: '', body: '{Anrede},\n\nkurz nachgehakt zu meiner Nachricht – PERSOENLICHES FOLLOW-UP.\n\nBeste Grüße\n{Absender}' },
       { subject: '', body: '{Anrede},\n\ndas ist meine letzte Nachricht.\n\nAlles Gute\n{Absender}' }] });
   }
@@ -105,12 +105,12 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   fake.db.accounts.forEach(a => { a.next_send_at = null; });
   await cronRaw(); await wait(400);
   ok('1 Mail verschickt (die ohne Freigabe-Pflicht)', sink.length === 1);
-  ok('verschickte Mail ist personalisiert', /Kurz zu Ihren Terminen/.test(sink[0]) && /Sie betreuen Kunden in Wien/.test(sink[0]));
+  ok('verschickte Mail ist personalisiert', /Kurz zu Ihren Terminen/.test(sink[0]) && /dass Sie Kunden in Wien/.test(sink[0]));
   const pendingOne = fake.db.enrollments.find(e => e.id === revId);
   ok('Mail mit offener Freigabe wurde nicht gesendet', pendingOne.status === 'pending');
 
   // 7) Freigeben mit Änderung → wird gesendet
-  const edited = pendingOne.personal.steps.map((s, i) => i === 0 ? { ...s, body: s.body.replace('Sie betreuen', 'BEARBEITET: Sie betreuen') } : s);
+  const edited = pendingOne.personal.steps.map((s, i) => i === 0 ? { ...s, body: s.body.replace('ich habe gesehen', 'BEARBEITET: ich habe gesehen') } : s);
   r = await call('POST', `/api/review/${revId}`, { action: 'approve', steps: edited });
   ok('Freigabe gespeichert', r.j.ok && fake.db.enrollments.find(e => e.id === revId).review === 'ok');
   fake.db.accounts.forEach(a => { a.next_send_at = null; });
@@ -219,7 +219,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   const lazy = '{Anrede},\n\nIhre Website stellt den Elektromeisterbetrieb mit Leistungen für Zählerschränke klar in den Mittelpunkt.\n\nIm Handwerk klingelt das Telefon meistens genau dann, wenn man auf der Baustelle steht. Viele Kunden rufen dann einfach den nächsten Betrieb an.\n\nWir bauen für Betriebe wie {Firma} einen digitalen Assistenten, der Anrufe und Anfragen annimmt.\n\nWäre so etwas für Sie interessant?\n\nBeste Grüße\n{Absender}';
   const errsLazy = AI.checkPersonal(tplH, [{ subject: 'a', body: lazy }], ctxH);
   ok('Prüfregel: Vorlage mit einem Satz davor wird abgelehnt', errsLazy.some(e => /wörtlich aus der Vorlage/.test(e)) && errsLazy.some(e => /Beschreibung der Website/.test(e)));
-  const goodMail = '{Anrede},\n\nsie decken vom Zählerschrank bis zur Ladeinfrastruktur für Unternehmen und öffentliche Einrichtungen in Berlin ziemlich viel ab.\n\nGerade bei Wallboxen kommen oft dieselben Fragen zu Förderung und Ablauf. Bei Ihnen laufen Anfragen über Telefon und E-Mail – wie halten Sie das am Laufen, wenn Sie gerade beim Kunden sind?\n\nWir bauen für Betriebe wie {Firma} einen digitalen Assistenten, der solche Anfragen rund um die Uhr annimmt und Ihnen gesammelt schickt.\n\nWäre das für Sie interessant?\n\nBeste Grüße\n{Absender}';
+  const goodMail = '{Anrede},\n\nich habe gesehen, dass Sie viel Ladeinfrastruktur für Unternehmen und öffentliche Einrichtungen machen und Anfragen über Telefon und E-Mail reinkommen. Wie halten Sie das am Laufen, wenn Sie gerade beim Kunden am Zählerschrank stehen?\n\nGerade bei Wallboxen kommen oft dieselben Fragen zu Förderung und Ablauf.\n\nWir bauen für Betriebe wie {Firma} einen digitalen Assistenten, der solche Anfragen rund um die Uhr annimmt und Ihnen gesammelt schickt.\n\nWäre das für Sie interessant?\n\nBeste Grüße\n{Absender}';
   ok('Prüfregel: zugeschnittene Mail wird angenommen', AI.checkPersonal(tplH, [{ subject: 'Anfragen zur Ladeinfrastruktur', body: goodMail }], ctxH).length === 0);
 
   ok('Großschreibung: „Sie“ und Firmenname am Absatzanfang', AI.fixCase('{Anrede},\n\nsie betreuen.\n\nim Handwerk', 'X').startsWith('{Anrede},\n\nSie betreuen.\n\nIm Handwerk') && AI.fixCase('{Anrede},\n\npmw elektro plant.', 'Pmw Elektro GmbH').includes('Pmw Elektro plant') && AI.fixCase('{Anrede},\n\nbei Ihnen läuft viel.', 'X').includes('bei Ihnen'));
