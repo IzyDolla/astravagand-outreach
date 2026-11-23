@@ -11,6 +11,14 @@ const DEFAULTS = {
   enrollments: { step: 0, status: 'pending', history: [], errors: 0, refs: [], account_id: null, next_at: null }, sends: { test: false },
   inbox: { read: false }, autopilots: { lock_until: '1970-01-01T00:00:00.000Z', state: {}, log: [], settings: {}, locations: [] }, finder_jobs: { status: 'queued', attempts: 0, total: 0, with_email: 0, with_phone: 0, with_website: 0, crawled: 0, error: null, center: null, claimed_at: null }, finder_results: { crawl_status: 'pending', emails: [], socials: {}, email: null, contact_first: null, imported_at: null, imported_list: null, claimed_at: null, phone: '', website: '' }, templates: { subject: '', body: '' }, members: { role: 'member' }
 };
+// Wie die CHECK-Regeln in der echten Datenbank (Supabase) – damit Tests solche Fehler auch finden
+const IN = (...v) => x => x == null || v.includes(x), RANGE = (a, b) => x => x == null || (x >= a && x <= b);
+const CHECKS = {
+  finder_jobs: { max_results: RANGE(1, 20000), radius_km: RANGE(1, 100), source: IN('google', 'osm'), status: IN('queued', 'searching', 'crawling', 'done', 'error') },
+  finder_results: { crawl_status: IN('pending', 'running', 'done', 'skipped', 'error') },
+  campaigns: { status: IN('draft', 'active', 'paused', 'done') }
+};
+const checkRow = (t, r) => { for (const [c, f] of Object.entries(CHECKS[t] || {})) if (c in r && !f(r[c])) return `new row for relation "${t}" violates check constraint "${t}_${c}_check"`; return null; };
 function makeDb() { return { workspaces: [], members: [], profiles: [], accounts: [], lists: [], leads: [], campaigns: [], enrollments: [], sends: [], inbox: [], blocklist: [], templates: [], processed: [], audit: [], allowed_signups: [], locks: [], finder_jobs: [], finder_results: [], ai_usage: [], autopilots: [] }; }
 let clock = 0; const ts = () => new Date(Date.now() + (clock++)).toISOString();
 
@@ -61,7 +69,7 @@ class Query {
     if (this.op === 'insert' || this.op === 'upsert') {
       const out = [];
       for (const r of this.rows) {
-        const row = this._fill(r); const k = this._uniqKey(row);
+        const row = this._fill(r); const bad = checkRow(this.t, row); if (bad) return { data: null, error: { message: bad } }; const k = this._uniqKey(row);
         const ex = k !== null ? T.find(x => this._uniqKey(x) === k) : null;
         if (ex) { if (this.op === 'insert') return { data: null, error: { message: 'duplicate key value violates unique constraint' } }; if (this.upOpts.ignoreDuplicates) continue; Object.assign(ex, r); out.push(ex); continue; }
         T.push(row); out.push(row);
@@ -69,7 +77,7 @@ class Query {
       return this._ret(out);
     }
     let rows = T.filter(r => this._match(r) && this._innerOk(r, this.sel));
-    if (this.op === 'update') { rows.forEach(r => Object.assign(r, JSON.parse(JSON.stringify(this.patch)))); return this._ret(rows); }
+    if (this.op === 'update') { const bad = checkRow(this.t, this.patch); if (bad) return { data: null, error: { message: bad } }; rows.forEach(r => Object.assign(r, JSON.parse(JSON.stringify(this.patch)))); return this._ret(rows); }
     if (this.op === 'delete') { this.db[this.t] = T.filter(r => !rows.includes(r)); this._cascade(rows); return { data: null, error: null }; }
     for (const [c, asc, nf] of this._order.slice().reverse()) rows = rows.slice().sort((a, b) => { const x = a[c] ?? null, y = b[c] ?? null; if (x === y) return 0; if (x === null) return nf ? -1 : 1; if (y === null) return nf ? 1 : -1; return (x < y ? -1 : 1) * (asc ? 1 : -1); });
     const count = rows.length;

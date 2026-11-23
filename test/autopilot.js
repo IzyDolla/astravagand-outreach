@@ -184,17 +184,18 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   r = await call('PATCH', `/api/autopilots/${apId}`, { locations: 'Wien\nWien Umgebung\nMödling' });
   ok('Ort hinzufügen setzt fort', r.j.ok && r.j.autopilot.locations.length === 3 && r.j.autopilot.state.needMore === false);
 
+  ok('kein Fehler im Protokoll', !fake.db.autopilots.find(x => x.id === apId).log.some(l => /Fehler im Automodus/.test(l.text)));
   // 11b) Ort mit nur 60 Google-Treffern (alte Suche) wird gründlich in Teilgebieten nachgesucht
   ap = fake.db.autopilots.find(x => x.id === apId);
   fake.db.finder_jobs.filter(j => j.autopilot_id === apId).forEach(j => { j.status = 'done'; });
   const gj = { id: require('crypto').randomUUID(), ws_id: ws, autopilot_id: apId, source: 'google', location: 'Graz', status: 'done', total: 59, with_email: 40, cursor: null, created_at: new Date().toISOString() };
   fake.db.finder_jobs.push(gj);
-  ap.locations.push({ name: 'Graz', state: 'done', job_id: gj.id }); ap.state.needMore = false; ap.settings = { ...ap.settings, goal: 500 };
+  ap.locations.push({ name: 'Graz', state: 'done', job_id: gj.id }); ap.state.needMore = false; ap.settings = { ...ap.settings, goal: 1000 };
   ap.locations.forEach(l => { if (l.name !== 'Graz') l.state = 'done'; });
   await AP.run(Date.now() + 10000, apId); await AP.run(Date.now() + 10000, apId);
   ap = fake.db.autopilots.find(x => x.id === apId);
   const deep = fake.db.finder_jobs.filter(j => j.autopilot_id === apId && j.location === 'Graz' && j.id !== gj.id);
-  ok('Ort mit 59 Google-Treffern wird gründlich nachgesucht (mehr als 60)', deep.length === 1 && deep[0].max_results > 60 && ap.log.some(l => /gründlich/.test(l.text)));
+  ok('Ort mit 59 Google-Treffern wird gründlich nachgesucht (Ziel 1000 → bis 2000 pro Ort)', deep.length === 1 && deep[0].max_results > 500 && ap.log.some(l => /gründlich/.test(l.text)) && !ap.log.some(l => /Fehler im Automodus/.test(l.text)));
 
   // 12) Bremse: hohe Bounce-Rate pausiert alles
   for (let i = 0; i < 30; i++) fake.db.sends.push({ id: require('crypto').randomUUID(), ws_id: ws, campaign_id: camp.id, step: 0, test: false, at: new Date().toISOString() });
