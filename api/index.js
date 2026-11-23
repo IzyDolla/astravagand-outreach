@@ -54,8 +54,21 @@ module.exports = async (req, res) => {
       if (!process.env.CRON_SECRET || !C.safeEq(secret, process.env.CRON_SECRET)) return send(res, 401, { ok: false });
       const got = await q(sb().rpc('acquire_lock', { p_name: 'tick', p_seconds: 58 }));
       if (!got) return send(res, 200, { ok: true, skipped: 'läuft bereits' });
-      const deadline = Date.now() + 45000;
-      try { const r = await C.tick(deadline); await C.pollDue(deadline + 8000); let f = {}; const fEnd = deadline + 11000; if (fEnd - Date.now() > 10000) f = await require('../lib/finder').process(fEnd).catch(e => ({ finderError: e.message })); let ai = {}; const aEnd = deadline + 14000; if (aEnd - Date.now() > 14000) { const AIx = require('../lib/ai'); ai = await AIx.processFinder(aEnd).catch(e => ({ aiError: e.message })); const r2 = await AIx.processIcebreakers(aEnd).catch(e => ({ aiError: e.message })); ai = { finder: ai, leads: r2 }; } return send(res, 200, { ok: true, ...r, finder: f, ai }); }
+      const start = Date.now(), deadline = start + 45000, hard = start + 58000;
+      try {
+        const r = await C.tick(deadline);                                         // 1. Versand (Mail 1 + Follow-ups)
+        await C.pollDue(Math.min(deadline + 8000, Date.now() + 12000));            // 2. Antworten abrufen
+        const AP = require('../lib/autopilot'), AIx = require('../lib/ai'), F = require('../lib/finder');
+        const ap = await AP.run(Date.now() + 8000).catch(e => ({ apError: e.message }));   // 3. Automodus
+        const ai = {};
+        if (AIx.configured()) {                                                    // 4. KI: Personalisierung vor Firmencheck
+          ai.personal = await AIx.processPersonalize(hard, null, 30000).catch(e => ({ error: e.message }));
+          ai.finder = await AIx.processFinder(hard, null, 28000).catch(e => ({ error: e.message }));
+          ai.leads = await AIx.processIcebreakers(hard, null, 28000).catch(e => ({ error: e.message }));
+        }
+        let f = {}; if (hard - 2000 - Date.now() > 8000) f = await F.process(hard - 2000).catch(e => ({ finderError: e.message }));   // 5. Lead-Suche/Crawler
+        return send(res, 200, { ok: true, ...r, autopilot: ap, finder: f, ai });
+      }
       finally { await q(sb().rpc('release_lock', { p_name: 'tick' })).catch(() => {}); }
     }
     if (req.method !== 'GET' && req.headers['x-ao'] !== '1') return send(res, 403, { ok: false, error: 'Anfrage blockiert (Sicherheitsprüfung).' });

@@ -19,7 +19,7 @@ global.fetch = async (url, opts = {}) => {
   if (url.startsWith('https://gmail.googleapis.com/gmail/v1/users/me/')) {
     const who = String(opts.headers.Authorization).replace('Bearer AT-', ''); const path = url.split('/users/me/')[1];
     if (path === 'profile') return J({ emailAddress: who });
-    if (path === 'messages/send') { const raw = Buffer.from(JSON.parse(opts.body).raw, 'base64url').toString(); const id = 'm' + sent.length; sent.push({ who, raw, id }); return J({ id }); }
+    if (path === 'messages/send') { const bj = JSON.parse(opts.body); if (bj.threadId === 'GONE') return { ok: false, status: 404, json: async () => ({ error: { message: 'Requested entity was not found.' } }) }; const raw = Buffer.from(bj.raw, 'base64url').toString(); const id = 'm' + sent.length; sent.push({ who, raw, id, threadId: bj.threadId || null }); return J({ id, threadId: bj.threadId || 't' + id }); }
     if (path.startsWith('messages/m') && path.includes('format=metadata')) { const s = sent.find(x => path.startsWith('messages/' + x.id + '?')); return J({ payload: { headers: [{ name: 'Message-ID', value: '<gmail-' + s.id + '@mail.gmail.com>' }] } }); }
     if (path.startsWith('messages?')) return J({ messages: inbox.map(m => ({ id: m.id })) });
     if (path.startsWith('messages/') && path.includes('format=raw')) { const m = inbox.find(x => path.startsWith('messages/' + x.id + '?')); return J({ raw: Buffer.from(m.raw).toString('base64url') }); }
@@ -62,5 +62,11 @@ const ok = (n, c) => { console.log((c ? '  ✓ ' : '  ✗ ') + n); if (!c) proce
   fake.db.allowed_signups.push({ email: 'm@astravagand.com' }); const m = (await fake.auth.admin.createUser({ email: 'm@astravagand.com', password: 'x' })).data.user;
   fake.db.members.push({ ws_id: fake.db.workspaces[0].id, user_id: m.id, role: 'member' }); TOKEN = fakeToken(m.id);
   r = await call('POST', '/api/gworkspace/accounts', { emails: ['x@astravagand.com'] }); ok('Mitglied darf keine Admin-Postfächer', r.status === 403);
+  // Gmail-Verlauf: threadId wird mitgeschickt; ist der Verlauf weg, wird normal gesendet
+  const G = require('../lib/gworkspace');
+  let rs = await G.send('vertrieb@astravagand.com', { from: 'vertrieb@astravagand.com', to: 'a@b.at', subject: 'Re: x', text: 'y', threadId: 'T1' });
+  ok('Follow-up im Gmail-Verlauf (threadId)', sent[sent.length - 1].threadId === 'T1' && rs.threadId === 'T1');
+  const n0 = sent.length; rs = await G.send('vertrieb@astravagand.com', { from: 'vertrieb@astravagand.com', to: 'a@b.at', subject: 'Re: x', text: 'y', threadId: 'GONE' });
+  ok('Verlauf gelöscht → trotzdem gesendet', sent.length === n0 + 1 && !sent[sent.length - 1].threadId);
   console.log(process.exitCode ? '\nFEHLER' : '\nALLES OK'); process.exit(process.exitCode || 0);
 })().catch(e => { console.error(e); process.exit(1); });

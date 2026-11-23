@@ -79,7 +79,7 @@ const okAccounts=()=>C.accounts.filter(a=>a.status==='ok');
 const SAMPLE={first:'Martin',last:'Huber',company:'Musterfirma GmbH',city:'Linz',industry:'Reinigung',email:'m.huber@musterfirma.at'};
 
 /* ================= Sidebar & Top ================= */
-const NAV=[['overview','home','Übersicht'],['campaigns','send','Kampagnen'],['leads','users','Leads'],['inbox','inbox','Posteingang'],['accounts','mail','E-Mail-Konten'],['templates','file','Vorlagen'],['finder','radar','Lead-Finder'],['settings','gear','Einstellungen']];
+const NAV=[['overview','home','Übersicht'],['auto','bolt','Automodus'],['campaigns','send','Kampagnen'],['leads','users','Leads'],['inbox','inbox','Posteingang'],['accounts','mail','E-Mail-Konten'],['templates','file','Vorlagen'],['finder','radar','Lead-Finder'],['settings','gear','Einstellungen']];
 function renderSide(){
  if(!C)return;
  const bad=C.accounts.some(a=>a.status!=='ok');
@@ -111,6 +111,7 @@ V.overview=()=>{
  C.accounts.forEach(a=>{if(a.status==='error')alerts.push(['bad','alert',`${a.email} ist getrennt`,a.error||'Verbindung prüfen','Beheben','accounts']);else if(a.status==='paused')alerts.push(['warn','pause',`${a.email} ist pausiert`,a.error||'Manuell pausiert','Ansehen','accounts']);
   if(a.imapError&&a.status==='ok')alerts.push(['warn','inbox',`Antworten bei ${a.email} werden nicht erkannt`,'IMAP: '+a.imapError,'Ansehen','accounts']);
   if(a.dns&&!(a.dns.spf&&a.dns.dkim&&a.dns.dmarc))alerts.push(['warn','shield',`${['spf','dkim','dmarc'].filter(x=>!a.dns[x]).map(x=>x.toUpperCase()).join(', ')} fehlt bei ${a.email.split('@')[1]}`,'Ohne diese Einträge landen mehr Mails im Spam','Anleitung','accounts'])});
+ C.campaigns.filter(c=>c.reviewPending).forEach(c=>alerts.push(['warn','sparkle',`${c.reviewPending} Mail${c.reviewPending>1?'s':''} warten auf Freigabe`,`„${c.name}“ – erst danach gehen sie raus`,'Prüfen','camp:'+c.id]));
  C.campaigns.filter(c=>c.status==='paused').forEach(c=>alerts.push(['warn','pause',`„${c.name}“ ist pausiert`,'Es wird nichts verschickt','Öffnen','camp:'+c.id]));
  const uniq=[...new Map(alerts.map(a=>[a[2],a])).values()];
  return `<div class="wrap"><div class="page-head"><div><h1>${greet}${C.accounts[0]?.name?', '+esc(C.accounts[0].name.split(' ')[0]):''}</h1><p>${new Date().toLocaleDateString('de-AT',{weekday:'long',day:'numeric',month:'long'})}. ${active.length?`${active.length} Kampagne${active.length===1?'':'n'} aktiv, ${okAccounts().length} Konten bereit.`:'Gerade läuft keine Kampagne.'}</p></div>
@@ -257,13 +258,14 @@ function campDetail(){
  const s=c.stats;
  return `<div class="wrap"><button class="btn sm ghost" data-act="backCamps" style="margin-bottom:14px">${ic('back')}Alle Kampagnen</button>
  <div class="page-head"><div><div class="row gap"><h1>${esc(c.name)}</h1><span class="badge ${STATUS[c.status][1]}">${STATUS[c.status][0]}</span></div><p>${s.contacted} von ${s.total||C.lists.filter(l=>c.lists.includes(l.id)).reduce((a,l)=>a+l.count,0)} Leads kontaktiert · ${s.replies} Antworten · ${c.accounts.length} Absender-Konten · heute ${s.sentToday} neue</p></div>
- <div class="row gap"><span class="muted" id="saveState" style="font-size:12.5px"></span><button class="btn" data-act="testmail">${ic('send')}Testmail an mich</button>${c.status==='active'?`<button class="btn" data-act="pauseCamp">${ic('pause')}Pausieren</button>`:c.status==='done'?'':`<button class="btn primary" data-act="startCheck">${ic('play')}${c.status==='paused'?'Fortsetzen':'Kampagne starten'}</button>`}</div></div>
+ <div class="row gap" style="flex-wrap:wrap"><span class="muted" id="saveState" style="font-size:12.5px"></span>${c.autopilotId?`<button class="btn ghost" data-act="apGoto" data-id="${c.autopilotId}">${ic('bolt')}Automodus</button>`:''}<button class="btn" data-act="testmail">${ic('send')}Testmail an mich</button>${c.status==='active'?`<button class="btn" data-act="pauseCamp">${ic('pause')}Pausieren</button>`:c.status==='done'?'':`<button class="btn primary" data-act="startCheck">${ic('play')}${c.status==='paused'?'Fortsetzen':'Kampagne starten'}</button>`}</div></div>
+ ${c.reviewPending?`<div class="banner" style="border-color:var(--vline)">${ic('sparkle')}<div><b>${c.reviewPending} persönliche Mail${c.reviewPending>1?'s':''} warten auf deine Freigabe.</b> <span class="muted">Erst danach gehen sie raus.</span></div><button class="btn sm primary" style="margin-left:auto" data-act="reviewOpen" data-camp="${c.id}">Jetzt prüfen</button></div>`:''}
  <div class="tabs">${tabs.map(([k,l])=>`<button class="tab ${S.campTab===k?'active':''}" data-act="campTab" data-k="${k}">${l}</button>`).join('')}</div>${body}</div>`;
 }
 async function loadPrevLeads(c){const j=await get(`/api/campaigns/${c.id}/leads`);if(j.ok){S.prevLeads=j.rows.map(r=>r.lead).slice(0,50);S.campRows=j;if(S.view==='campaigns'&&S.camp===c.id){if(S.campTab==='leads')render();else refreshPreview(true)}}}
 const curLead=()=>S.prevLeads[S.prevIdx]||SAMPLE;
 const sender=()=>{const c=camp();const a=c&&accById(c.accounts[0]);return a||{name:C.accounts[0]?.name||'Dein Name',email:C.accounts[0]?.email||'du@firma.com'}};
-function renderVars(t,lead,html=true){const f=String(lead.first||'').trim();const map={Anrede:f?'Guten Tag '+[f,String(lead.last||'').trim()].filter(Boolean).join(' '):'Sehr geehrte Damen und Herren',Vorname:lead.first,Nachname:lead.last,Firma:lead.company,Stadt:lead.city,Branche:lead.industry,Absender:sender().name,Einstieg:lead.icebreaker};
+function renderVars(t,lead,html=true){const f=String(lead.first||'').trim();const g=C.settings.greeting==='hallo'?'Hallo':'Guten Tag',la=String(lead.last||'').trim(),sa=String(lead.salutation||'').trim();const map={Anrede:la&&(sa==='Herr'||sa==='Frau')?`${g} ${sa} ${la}`:f?g+' '+[f,la].filter(Boolean).join(' '):'Sehr geehrte Damen und Herren',Vorname:lead.first,Nachname:lead.last,Firma:lead.company,Stadt:lead.city,Branche:lead.industry,Absender:sender().name,Einstieg:lead.icebreaker};
  let s=String(t||'');const ice=!!String(lead.icebreaker||'').trim();s=s.replace(/^([ \t]*\{Einstieg\}[ \t]*\r?\n[ \t]*\r?\n)([a-zäöü])/gm,(m,a,c)=>ice?a+c.toUpperCase():m).replace(/^[ \t]*\{Einstieg\}[ \t]*\r?\n(?:[ \t]*\r?\n)?/gm,m=>ice?m:'');if(!f)s=s.replace(GREET_RE,'Sehr geehrte Damen und Herren,');if(!String(lead.last||'').trim())s=s.replace(/^[ \t]*Sehr geehrte[rs]?\s+(?:Herr|Frau)\s+\{Nachname\}[ \t]*,?/gim,'Sehr geehrte Damen und Herren,');
  if(!html)return s.replace(/ \{(\w+)\}(?=[,.!?:;]|\s|$)/g,(m,k)=>map[k]?' '+map[k]:'').replace(/\{(\w+)\}/g,(m,k)=>map[k]||'');
  return esc(s).replace(/\{(\w+)\}/g,(m,k)=>map[k]?`<mark>${esc(map[k])}</mark>`:`<mark class="miss">{${k} leer}</mark>`)}
@@ -349,7 +351,7 @@ function campSenders(c){
 function campSettings(c){
  const row=(on,l,h,act)=>`<div style="padding:14px 0;border-bottom:1px solid var(--border)"><div class="toggle ${on?'on':''}" ${act?`data-act="${act}"`:'style="cursor:default;opacity:.75"'}><span class="sw"></span>${l}</div><div class="muted" style="font-size:12px;margin:4px 0 0 46px">${h}</div></div>`;
  return `<div class="grid g2" style="align-items:start"><div class="card" style="padding:8px 22px 14px">${row(1,'Bei Antwort stoppen','Sobald der Lead antwortet, bekommt er keine Follow-ups mehr. (Immer aktiv)')}${row(1,'Abwesenheitsnotizen erkennen','Automatische Antworten stoppen die Sequenz nicht und landen im Ordner „Abwesend“.')}${row(1,'Abmeldungen erkennen','Antwortet jemand mit „Abmelden“, wird er gestoppt und kommt auf die Sperrliste.')}${row(c.stopCompany,'Ganze Firma stoppen','Antwortet jemand von @firma.at, bekommen Kollegen derselben Firma keine Mails mehr.','toggleCompany')}${row(0,'Öffnungen tracken','Bewusst nicht eingebaut: ungenau (Apple Mail), schadet der Zustellbarkeit, im DACH-Raum einwilligungspflichtig.')}</div>
- <div class="card" style="padding:20px"><div class="field"><label>Name der Kampagne</label><input class="input" value="${esc(c.name)}" data-campfield="name"></div><div class="row gap mt"><button class="btn danger" data-act="delCamp">${ic('trash')}Kampagne löschen</button></div><p class="muted" style="font-size:12px;margin-top:10px">Löschen entfernt auch den Verlauf dieser Kampagne. Leads bleiben in ihren Listen.</p></div></div>`;
+ <div class="card" style="padding:20px"><div class="field"><label>Name der Kampagne</label><input class="input" value="${esc(c.name)}" data-campfield="name"></div><div class="row gap mt"><button class="btn danger" data-act="delCamp">${ic('trash')}Kampagne löschen</button></div><p class="muted" style="font-size:12px;margin-top:10px">Löschen entfernt auch den Verlauf dieser Kampagne. Leads bleiben in ihren Listen.</p></div> <div class="card" style="padding:8px 22px 18px;grid-column:1/-1">${row(c.personalize,'KI schreibt jede Mail persönlich','Die Vorlage bleibt das Gerüst. Die KI baut pro Firma 1–2 Details aus dem Firmencheck ein (Kurzprofil, Ansatzpunkte, Website-Check) – nie als Kritik formuliert. Klappt es nicht, wird die Vorlage verwendet.','togglePers')}${c.personalize?`<div class="row gap" style="margin:12px 0 0 46px"><span class="muted" style="font-size:12.5px">Die ersten</span><input class="input" type="number" min="0" max="200" value="${c.reviewFirst}" data-campfield="reviewFirst" style="width:80px"><span class="muted" style="font-size:12.5px">Mails selbst freigeben, bevor sie rausgehen (0 = keine Freigabe)</span></div>`:''}</div></div>`;
 }
 function campStats(c){
  const st=c.stats.steps;const max=Math.max(1,...st.map(s=>s.sent?s.replies/s.sent*100:0));
@@ -568,7 +570,7 @@ async function openLead(id){
  const items=[];
  j.enroll.forEach(e=>{
   items.push(`<div class="muted" style="font-size:11.5px;font-weight:700;font-weight:650;margin:4px 0 12px">Kampagne „${esc(e.campaign||'')}“</div>`);
-  if(e.status==='pending')items.push(`<div class="tl-item plan"><div class="what">Wartet auf Mail 1</div><div class="cell-sub">Geht am nächsten Versandtag raus.</div></div>`);
+  if(e.status==='pending')items.push(`<div class="tl-item plan"><div class="what">Wartet auf Mail 1</div><div class="cell-sub">${e.review==='pending'?'Persönliche Mail wartet auf deine Freigabe.':e.persStatus==='queued'||e.persStatus==='working'?'KI schreibt gerade die persönliche Mail.':'Geht am nächsten Versandtag raus.'}</div>${e.personal&&e.personal.steps?`<div class="body"><b>${esc(e.personal.steps[0].subject||'')}</b>\n\n${esc(e.personal.steps[0].body||'')}</div>`:''}</div>`);
   e.history.forEach(h=>{
    if(h.type==='sent')items.push(`<div class="tl-item"><div class="when">${dt(h.at)} · von ${esc(h.account)}</div><div class="what">${esc(e.steps[h.step]?(h.step===0?'Mail 1':'Follow-up '+h.step):'Mail')} gesendet</div><div class="body"><b>${esc(h.subject)}</b>\n\n${esc(h.text)}</div></div>`);
    else if(h.type==='reply')items.push(`<div class="tl-item rep"><div class="when">${dt(h.at)}</div><div class="what" style="color:var(--good)">Antwort erhalten – Sequenz gestoppt</div><div class="body">${esc(h.text)}</div></div>`);
@@ -747,7 +749,7 @@ function render(keepScroll){
  if(S.view!=='campaigns'||!S.camp){S.editId=null}
  $('#content').innerHTML=V[S.view]();$('#content').scrollTop=keepScroll?sc:0;
  document.querySelectorAll('[data-i]').forEach(e=>{if(e.tagName==='SPAN'&&I[e.dataset.i]&&!e.innerHTML)e.innerHTML=ic(e.dataset.i)});
- if(S.view==='accounts')calc();if(S.view==='leads'&&C.leadsCount)loadLeads();if(S.view==='inbox')loadInbox();if(S.view==='finder')loadFinder();
+ if(S.view==='accounts')calc();if(S.view==='leads'&&C.leadsCount)loadLeads();if(S.view==='inbox')loadInbox();if(S.view==='finder')loadFinder();if(S.view==='auto')autoEnter();
 }
 async function refresh(full=true){const ok=await load();if(ok&&full)render(true);else if(ok){renderSide();renderTop()}}
 function go(v){S.view=v;if(v!=='campaigns')S.camp=null;closePanel();tour(-1);render()}
@@ -1143,6 +1145,7 @@ function aiSection(){
  return `<h3 style="font-size:16px;margin-bottom:6px">KI (OpenAI)</h3><p class="muted" style="font-size:12.5px;margin-bottom:16px">Schreibt Sequenzen, verbessert Texte, schlägt Antworten vor und erstellt persönliche Einstiege aus der Website jedes Leads.</p>
  <div class="callout ${AIINFO.configured?'ok':''}" style="margin-bottom:18px">${ic(AIINFO.configured?'check':'info')}<div>${AIINFO.configured?`<b>Verbunden</b> · Modell ${esc(AIINFO.model)} · Schlüssel liegt sicher als Vercel-Variable, nicht in der Datenbank.`:'<b>Nicht eingerichtet.</b> Lege in Vercel die Variable <code>OPENAI_KEY</code> (Typ „Sensitive“) an und deploye neu.'}</div></div>
  <div class="field"><label>Dein Angebot – Grundlage für alle KI-Texte</label><textarea class="textarea" id="aiOffer" style="min-height:130px">${esc(C.ai.offer)}</textarea><span class="hint">Was verkaufst du, an wen, was ist der Nutzen? Je konkreter, desto besser die Texte. Keine Preise oder Zahlen, die du nicht belegen kannst.</span></div>
+ <div class="field"><label>Anrede, wenn der Ansprechpartner bekannt ist</label><div class="seg" style="align-self:flex-start"><button class="${C.settings.greeting==='hallo'?'':'on'}" data-act="setGreeting" data-g="">Guten Tag Herr Huber</button><button class="${C.settings.greeting==='hallo'?'on':''}" data-act="setGreeting" data-g="hallo">Hallo Herr Huber</button></div><span class="hint">Ohne bekannten Namen bleibt es bei „Sehr geehrte Damen und Herren“.</span></div>
  <div class="row gap"><button class="btn primary" data-act="aiOfferSave">${ic('check',2)}Speichern</button><button class="btn ghost" data-act="aiOfferReset">Standardtext</button></div>
  <h4 class="sec-h">Verbrauch diesen Monat</h4><div class="grid g4" style="gap:10px">${miniStat('KI-Anfragen',fmt(u.calls))}${miniStat('Einstiege',fmt(u.byKind.icebreaker||0))}${miniStat('Tokens',fmt(u.tokensIn+u.tokensOut))}${miniStat('Kosten ca.',(u.costUsd<0.01&&u.calls?'< 0,01':num(u.costUsd))+' $')}</div>`;
 }
@@ -1172,4 +1175,148 @@ Object.assign(A,{
   const j=await post('/api/signature/push',{});
   if(j.scopeMissing)return modal(`${mh('Noch eine Freigabe nötig')}<div class="modal-b"><p style="font-size:13.5px">Zum Ändern der Gmail-Signatur braucht die Admin-Verbindung eine zusätzliche Berechtigung. Einmalig in der Google Admin-Konsole:</p><ol style="font-size:13px;margin:12px 0 0 18px;line-height:1.8"><li>admin.google.com → Sicherheit → Zugriffs- und Datenverwaltung → API-Steuerung → <b>Domainweite Delegierung</b></li><li>Beim Client <code>${esc(j.clientId||'')}</code> auf <b>Bearbeiten</b></li><li>Diesen Bereich ergänzen (Komma-getrennt): <div class="row gap-s" style="margin-top:6px"><code style="word-break:break-all">${esc(j.scope)}</code><button class="btn sm ghost" data-act="copyTxt" data-v="${esc(j.scope)}">${ic('copy')}</button></div></li><li>Speichern, 1–2 Minuten warten und hier nochmal klicken.</li></ol></div><div class="modal-f"><button class="btn primary" data-act="closeModal">Verstanden</button></div>`);
   if(!j.ok)return toast(esc(j.error),'bad');const bad=j.results.filter(r=>!r.ok);modal(`${mh('Gmail-Signaturen')}<div class="modal-b">${j.results.map(r=>`<div class="checkrow"><span class="ci ${r.ok?'ok':'no'}">${r.ok?'✓':'!'}</span><span>${esc(r.email)}${r.ok?'':' – '+esc(r.error)}</span></div>`).join('')}${bad.length?'':resBox('ok','In allen Postfächern gesetzt.')}</div><div class="modal-f"><button class="btn primary" data-act="closeModal">OK</button></div>`)})
+});
+
+/* ================= Automodus ================= */
+const AU={list:null,sel:null,cats:[],sources:{},loading:false,loop:0};
+const AP_SCHED={office:['Mo–Fr 8–16:30',{days:[1,1,1,1,1,0,0],from:'08:00',to:'16:30',allDay:false}],day:['Mo–Fr 9–17',{days:[1,1,1,1,1,0,0],from:'09:00',to:'17:00',allDay:false}],long:['Mo–Sa 8–18',{days:[1,1,1,1,1,1,0],from:'08:00',to:'18:00',allDay:false}]};
+const apSchedKey=sc=>Object.keys(AP_SCHED).find(k=>{const x=AP_SCHED[k][1];return x.from===sc.from&&x.to===sc.to&&x.days.join('')===sc.days.join('')&&!sc.allDay})||'';
+const apCur=()=>AU.list&&AU.list.find(a=>a.id===AU.sel);
+async function autoLoad(){const j=await get('/api/autopilots');if(j.ok){AU.list=j.autopilots;AU.cats=j.categories;AU.sources=j.sources||{}}return j}
+function autoEnter(){if(!AU.list){autoLoad().then(()=>{if(S.view==='auto')drawAuto()})}else drawAuto();autoPump()}
+function drawAuto(){const el=$('#content');if(el&&S.view==='auto'){const sc=el.scrollTop;el.innerHTML=V.auto();el.scrollTop=sc}}
+// Solange die Detailseite eines laufenden Automodus offen ist: direkt weiterarbeiten lassen
+async function autoPump(){
+ const my=++AU.loop;
+ while(my===AU.loop&&S.view==='auto'&&!document.hidden){
+  const a=apCur();if(!a||a.status!=='active'){await new Promise(r=>setTimeout(r,8000));if(my!==AU.loop||S.view!=='auto')return;if(!a){await autoLoad();drawAuto()}continue}
+  const j=await post(`/api/autopilots/${a.id}/step`,{}).catch(()=>null);
+  if(my!==AU.loop||S.view!=='auto')return;
+  if(j&&j.ok){const i=AU.list.findIndex(x=>x.id===a.id);if(i>=0)AU.list[i]=j.autopilot;if(!modalOpen())drawAuto()}
+  await new Promise(r=>setTimeout(r,3000));
+ }
+}
+const AP_STATE={todo:['wartet','b-mute'],running:['sucht …','b-violet'],done:['durchsucht','b-good'],error:['Fehler','b-bad']};
+const apWhat=a=>a.keyword||((AU.cats.find(c=>c.key===a.category)||{}).label)||'Suche';
+V.auto=()=>{
+ if(!AU.list)return `<div class="wrap"><div class="empty" style="padding:80px">${spinner}</div></div>`;
+ const a=apCur();if(a)return autoDetail(a);
+ const head=`<div class="page-head"><div><h1>Automodus</h1><p>Branche und Orte vorgeben. Suche, Firmencheck, persönliche Mails und Follow-ups laufen von selbst.</p></div>${AU.list.length?`<button class="btn primary" data-act="apNew">${ic('plus',2.2)}Neuer Automodus</button>`:''}</div>`;
+ if(!AU.list.length)return `<div class="wrap">${head}<div class="card ap-empty"><div class="ap-flow">${[['radar','Firmen finden','In deinen Orten, laufend neue – ohne Firmen, die du schon hast.'],['sparkle','Prüfen und schreiben','Firmencheck aus Impressum und Website, dann eine persönliche Mail pro Firma.'],['send','Senden und nachfassen','Im Versandfenster, mit Follow-ups im selben Verlauf. Antwort stoppt alles.']].map(([i,t,d],n)=>`<div class="ap-flow-s"><span class="ap-n">${n+1}</span>${ics(i,20)}<b>${t}</b><p>${d}</p></div>`).join('')}</div>
+  <div class="row gap" style="justify-content:center;margin-top:22px"><button class="btn primary" data-act="apNew">${ic('bolt')}Automodus einrichten</button></div>${aiOn()?'':`<p class="muted" style="text-align:center;font-size:12.5px;margin-top:10px">Ohne KI-Schlüssel läuft der Automodus mit den Vorlagen, ohne Firmencheck und Personalisierung.</p>`}</div></div>`;
+ return `<div class="wrap">${head}<div class="grid g2">${AU.list.map(a=>{const st=a.stats;return `<div class="card ap-card" data-act="apOpen" data-id="${a.id}">
+  <div class="row" style="justify-content:space-between;gap:10px"><div style="min-width:0"><b class="ap-title">${esc(a.name)}</b><div class="muted" style="font-size:12.5px;margin-top:2px">${esc(apWhat(a))} · ${a.locations.length} Ort${a.locations.length===1?'':'e'} · ${a.radius} km</div></div><span class="badge ${a.status==='active'?'b-good':'b-mute'}">${a.status==='active'?'Läuft':'Pausiert'}</span></div>
+  <div class="ap-mini">${[['Gefunden',st.found],['In Kampagne',st.imported],['Gesendet',st.sentTotal],['Antworten',st.replied]].map(([l,v])=>`<div><span>${l}</span><b>${fmt(v)}</b></div>`).join('')}</div>
+  ${st.review?`<div class="ap-flag">${ics('sparkle',14)}${st.review} Mail${st.review>1?'s':''} warten auf Freigabe</div>`:a.state.needMore?`<div class="ap-flag warn">${ics('alert',14)}Weitere Orte nötig</div>`:''}</div>`}).join('')}</div></div>`;
+};
+function autoDetail(a){
+ const st=a.stats,s=a.settings;
+ const stages=[['radar','Gefunden',st.found,`${fmt(st.withEmail)} mit E-Mail`],['sparkle','Firmencheck',st.checking?st.checking:'✓',st.checking?'wird geprüft':'aktuell nichts offen'],['users','In der Kampagne',st.imported,`${fmt(st.pending)} warten auf Mail 1`],['edit','Persönlich geschrieben',st.preparing+st.review,s.personalize?`${st.preparing} in Arbeit · ${st.review} zur Freigabe`:'aus – Vorlage'],['send','Verschickt',st.sentTotal,`heute ${st.sentToday} · ${st.followups} Follow-ups offen`],['inbox','Antworten',st.replied,`${st.positive} interessiert · ${st.unsub} abgemeldet`]];
+ const log=(a.log||[]).map(l=>`<div class="ap-log ${l.kind||''}"><span>${dt(l.at)}</span><div>${esc(l.text)}</div></div>`).join('');
+ return `<div class="wrap"><button class="btn sm ghost" data-act="apBack" style="margin-bottom:14px">${ic('back')}Alle Automodi</button>
+ <div class="page-head"><div><div class="row gap"><h1>${esc(a.name)}</h1><span class="badge ${a.status==='active'?'b-good':'b-mute'}">${a.status==='active'?'Läuft':'Pausiert'}</span></div><p>${esc(apWhat(a))}, ${a.locations.length} Ort${a.locations.length===1?'':'e'}, ${a.radius} km Umkreis, bis zu ${s.dailyNew} neue Firmen pro Tag, ${esc((AP_SCHED[apSchedKey(s.schedule)]||[schedTxt(s.schedule)])[0])}.</p></div>
+  <div class="row gap" style="flex-wrap:wrap"><button class="btn" data-act="apEdit">${ic('gear')}Einstellungen</button>${a.campaignId?`<button class="btn" data-act="openCamp" data-id="${a.campaignId}">${ic('send')}Kampagne</button>`:''}${a.status==='active'?`<button class="btn" data-act="apPause">${ic('pause')}Pausieren</button>`:`<button class="btn primary" data-act="apStart">${ic('play')}${a.campaignId?'Fortsetzen':'Starten'}</button>`}</div></div>
+ ${a.state.needMore?`<div class="banner" style="border-color:rgba(245,185,66,.4)">${ic('alert')}<div><b>Keine neuen Firmen mehr in deinen Orten.</b> <span class="muted">Füge weitere Orte hinzu, dann sucht der Automodus weiter.</span></div><button class="btn sm" style="margin-left:auto" data-act="apEdit">Orte hinzufügen</button></div>`:''}
+ ${a.state.noAccounts?`<div class="banner" style="border-color:rgba(242,119,122,.4)">${ic('alert')}<div><b>Kein verbundenes Absender-Konto.</b> <span class="muted">Es wird nichts verschickt.</span></div><button class="btn sm" style="margin-left:auto" data-act="go" data-view="accounts">Konten</button></div>`:''}
+ <div class="card ap-pipe">${stages.map(([i,l,v,sub],n)=>`<div class="ap-stage"><div class="ap-stage-h">${ics(i,15)}<span>${l}</span></div><b>${typeof v==='number'?fmt(v):v}</b><small>${sub}</small></div>`).join('')}</div>
+ <div class="grid g2 mt" style="align-items:start">
+  <div class="card"><div class="card-h"><h3>Freigabe</h3>${st.review?`<button class="btn sm primary" data-act="reviewOpen" data-ap="${a.id}">${st.review} prüfen</button>`:''}</div><div class="card-b">${st.review?`<p class="muted" style="font-size:13px">Die KI hat ${st.review} persönliche Mail${st.review>1?'s':''} geschrieben, die auf dich warten. Du siehst jede mit dem Firmencheck daneben, kannst sie ändern, freigeben, durch die Vorlage ersetzen oder die Firma überspringen.</p>`:`<p class="muted" style="font-size:13px">${s.personalize?(s.reviewFirst?`Die ersten ${s.reviewFirst} persönlichen Mails warten auf deine Freigabe – danach geht es automatisch.`:'Keine Freigabe eingestellt – persönliche Mails gehen direkt raus.'):'Personalisierung ist aus – es wird die Vorlage verschickt.'}</p>`}
+   <div class="ap-buffer">${(()=>{const b=a.state.buffer||{};return b.target?`<div class="row" style="justify-content:space-between;font-size:12.5px"><span class="muted">Vorrat für die nächsten ${s.bufferDays} Tage</span><b>${fmt((b.pending||0)+(b.pipeline||0))} / ${fmt(b.target)}</b></div><div class="prog" style="margin-top:6px"><i style="width:${Math.min(100,((b.pending||0)+(b.pipeline||0))/b.target*100)}%"></i></div>`:''})()}</div></div></div>
+  <div class="card"><div class="card-h"><h3>Orte</h3><button class="btn sm ghost" data-act="apEdit">${ic('plus',2)}Orte</button></div><div class="card-b" style="padding-top:6px">${a.locations.map(l=>`<div class="ap-loc"><span>${esc(l.name)}</span><span class="muted" style="font-size:12px">${l.found?fmt(l.found)+' Firmen'+(l.withEmail?`, ${fmt(l.withEmail)} mit E-Mail`:''):''}</span><span class="badge ${AP_STATE[l.state][1]}">${AP_STATE[l.state][0]}</span></div>`).join('')}</div></div>
+ </div>
+ <div class="card mt"><div class="card-h"><h3>Protokoll</h3><span class="muted" style="font-size:12px">${a.status==='active'?'aktualisiert sich von selbst':''}</span></div><div class="card-b" style="padding-top:8px">${log||'<p class="muted">Noch keine Einträge.</p>'}</div></div>
+ <div class="row gap mt"><button class="btn sm ghost danger" data-act="apDel">${ic('trash')}Automodus löschen</button><span class="muted" style="font-size:12px">Kampagne, Leads und Versandverlauf bleiben erhalten.</span></div></div>`;
+}
+function apModal(a){
+ const s=a?a.settings:{dailyNew:20,personalize:aiOn(),reviewFirst:10,schedule:AP_SCHED.office[1],accounts:[],templateId:null};
+ const okA=C.accounts.filter(x=>x.status==='ok');const sel=new Set(s.accounts&&s.accounts.length?s.accounts:okA.map(x=>x.id));
+ const groups=[...new Set(AU.cats.map(c=>c.group))];const cap=okA.filter(x=>sel.has(x.id)).reduce((t,x)=>t+x.limit,0);
+ const seq=C.templates.filter(t=>t.type==='seq');
+ modal(`${mh(a?'Automodus-Einstellungen':'Neuer Automodus','Einmal festlegen – danach sucht, prüft, schreibt und verschickt der Automodus selbst.')}<div class="modal-b ap-form">
+  <div class="grid g2" style="gap:14px"><div class="field"><label>Branche</label><select class="select" id="apCat" ${a?'disabled':''}><option value="">– eigener Suchbegriff –</option>${groups.map(g=>`<optgroup label="${esc(g)}">${AU.cats.filter(c=>c.group===g).map(c=>`<option value="${c.key}" ${a&&a.category===c.key?'selected':''}>${esc(c.label)}</option>`).join('')}</optgroup>`).join('')}</select></div>
+  <div class="field"><label>oder eigener Suchbegriff</label><input class="input" id="apKw" ${a?'disabled':''} placeholder="z. B. Bauunternehmen, Trockenbau" value="${esc(a&&a.keyword||'')}"></div></div>
+  ${a?'<p class="muted" style="font-size:12px;margin:-6px 0 12px">Branche und Quelle bleiben fest. Für eine andere Branche einen neuen Automodus anlegen.</p>':''}<div class="field"><label>Orte <span class="muted" style="font-weight:500">(einer pro Zeile – der Automodus arbeitet sie nacheinander ab)</span></label><textarea class="textarea" id="apLocs" style="min-height:90px" placeholder="Berlin&#10;Potsdam&#10;Oranienburg">${esc(a?a.locations.map(l=>l.name).join('\n'):'')}</textarea></div>
+  <div class="grid g2" style="gap:14px"><div class="field"><label>Umkreis je Ort</label><div class="seg" id="apRad">${[10,25,50].map(r=>`<button class="${(a?a.radius:25)===r?'on':''}" data-act="apSeg" data-g="apRad" data-v="${r}">${r} km</button>`).join('')}</div></div>
+  <div class="field"><label>Quelle</label><div class="seg" id="apSrc">${[['google','Google'],['osm','OpenStreetMap']].filter(([k])=>a?k===a.source:(k==='osm'||AU.sources.google)).map(([k,l])=>`<button class="${(a?a.source:(AU.sources.google?'google':'osm'))===k?'on':''}" data-act="apSeg" data-g="apSrc" data-v="${k}">${l}</button>`).join('')}</div></div></div>
+  <div class="grid g2" style="gap:14px"><div class="field"><label>Neue Firmen pro Tag</label><input class="input" type="number" min="1" max="300" id="apDaily" value="${s.dailyNew}"><span class="hint">Deine ausgewählten Konten schaffen heute zusammen ${cap} Mails (inkl. Follow-ups, Warm-up).</span></div>
+  <div class="field"><label>Versandzeit</label><div class="seg" id="apSched">${Object.entries(AP_SCHED).map(([k,[l]])=>`<button class="${apSchedKey(s.schedule)===k?'on':''}" data-act="apSeg" data-g="apSched" data-v="${k}">${l}</button>`).join('')}</div></div></div>
+  <div class="field"><label>Absender-Konten</label><div class="row gap-s" style="flex-wrap:wrap" id="apAccs">${okA.map(x=>`<span class="daychip ${sel.has(x.id)?'on':''}" style="width:auto;padding:0 12px" data-act="apAcc" data-id="${x.id}">${esc(x.email)}</span>`).join('')||'<span class="muted">Noch kein verbundenes Konto.</span>'}</div></div>
+  <div class="field"><label>Vorlage</label><select class="select" id="apTpl"><option value="">Automatisch passend zur Branche</option>${seq.map(t=>`<option value="${t.id}" ${s.templateId===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select></div>
+  <div class="ap-ki"><div class="toggle ${s.personalize?'on':''}" id="apPers" data-act="apToggle"><span class="sw"></span><b>Jede Mail persönlich schreiben</b></div><p class="muted">Die KI nimmt die Vorlage als Gerüst und baut 1–2 Details aus dem Firmencheck ein – nie als Kritik formuliert. Kosten: unter 1 Cent pro Firma.${aiOn()?'':' <b>KI ist noch nicht eingerichtet.</b>'}</p>
+   <div class="row gap" style="margin-top:10px"><span class="muted" style="font-size:12.5px">Die ersten</span><input class="input" type="number" min="0" max="200" id="apReview" value="${s.reviewFirst}" style="width:80px"><span class="muted" style="font-size:12.5px">Mails selbst freigeben (0 = direkt senden)</span></div></div>
+  <div id="apRes"></div></div>
+  <div class="modal-f">${a?`<button class="btn ghost" data-act="closeModal">Abbrechen</button><button class="btn primary" data-act="apSave" data-id="${a.id}">${ic('check',2)}Speichern</button>`:`<button class="btn ghost" data-act="closeModal">Abbrechen</button><button class="btn" data-act="apSave" data-start="">Nur speichern</button><button class="btn primary" data-act="apSave" data-start="1">${ic('bolt')}Speichern und starten</button>`}</div>`,true);
+}
+function apForm(){
+ const segv=id=>(document.querySelector(`#${id} button.on`)||{}).dataset?.v;
+ return {category:$('#apCat').value||null,keyword:$('#apKw').value.trim(),locations:$('#apLocs').value,radius:+segv('apRad')||25,source:segv('apSrc')||'google',
+  settings:{dailyNew:+$('#apDaily').value||20,schedule:(AP_SCHED[segv('apSched')]||AP_SCHED.office)[1],accounts:[...document.querySelectorAll('#apAccs .daychip.on')].map(x=>x.dataset.id),templateId:$('#apTpl').value||null,personalize:$('#apPers').classList.contains('on'),reviewFirst:+$('#apReview').value||0}};
+}
+/* Freigabe-Fenster (Automodus und Kampagnen) */
+const RV={scope:null,items:[],i:0,tab:0,total:0};
+async function reviewOpen(scope){
+ RV.scope=scope;RV.i=0;RV.tab=0;
+ modal(`${mh('Persönliche Mails freigeben')}<div class="modal-b"><div class="empty">${spinner}</div></div>`,true);
+ await reviewLoad();
+}
+async function reviewLoad(){
+ const qs=RV.scope.autopilot?'autopilot='+RV.scope.autopilot:'campaign='+RV.scope.campaign;
+ const j=await get('/api/review?limit=30&'+qs);if(!j.ok)return modal(`${mh('Freigabe')}<div class="modal-b">${resBox('err',esc(j.error))}</div>`);
+ RV.items=j.items;RV.total=j.total;if(RV.i>=RV.items.length)RV.i=0;drawReview();
+}
+function drawReview(){
+ if(!RV.items.length){modal(`${mh('Alles freigegeben')}<div class="modal-b">${resBox('ok','Keine Mails warten mehr auf Freigabe. Sie gehen im nächsten Versandfenster raus.')}</div><div class="modal-f"><button class="btn primary" data-act="reviewDone">Fertig</button></div>`);return}
+ const it=RV.items[RV.i],ins=it.lead.insights||{},st=it.steps[RV.tab]||it.steps[0];
+ const sig=(ins.signals||[]).filter(x=>x.tone==='gap').slice(0,4);
+ modal(`${mh(`Persönliche Mail freigeben <span class="muted" style="font-weight:500;font-size:14px">· ${RV.i+1} von ${RV.total}</span>`,esc(it.campaign?it.campaign.name:''))}<div class="modal-b"><div class="rv">
+  <div class="rv-side"><b style="font-size:14px">${esc(it.lead.company||it.lead.email)}</b><div class="muted" style="font-size:12.5px;margin:2px 0 10px">${esc([it.lead.name,it.lead.city].filter(Boolean).join(' · '))}<br>${esc(it.lead.email)}</div>
+   ${ins.profile?`<p style="font-size:12.5px;line-height:1.5">${esc(ins.profile)}</p>`:''}
+   ${(ins.angles||[]).length?`<div class="rv-h">Ansatzpunkte</div>${ins.angles.map(x=>`<div style="font-size:12.5px;margin-bottom:6px"><b>${esc(x.title)}</b><div class="muted">${esc(x.why)}</div></div>`).join('')}`:''}
+   ${sig.length?`<div class="rv-h">Website-Check</div><div class="fc-chips">${sig.map(x=>`<span class="badge b-warn">${esc(x.label)}</span>`).join('')}</div>`:''}
+   ${it.lead.website?`<a class="ice-web" href="${esc(/^https?:/.test(it.lead.website)?it.lead.website:'https://'+it.lead.website)}" target="_blank" rel="noopener noreferrer">${esc(it.lead.website.replace(/^https?:\/\/(www\.)?/,'').replace(/\/$/,''))}</a>`:''}</div>
+  <div class="rv-main"><div class="seg" style="margin-bottom:12px">${it.steps.map((x,i)=>`<button class="${RV.tab===i?'on':''}" data-act="rvTab" data-i="${i}">${x.name}</button>`).join('')}</div>
+   ${RV.tab===0?`<div class="field"><label>Betreff</label><input class="input" id="rvSubj" value="${esc(st.subject)}"></div>`:`<p class="muted" style="font-size:12.5px;margin-bottom:8px">Geht ${st.wait} Werktage nach der vorigen Mail raus, im selben Verlauf („${esc(it.steps[0].preview.subject?'Re: '+it.steps[0].preview.subject:'Re: …')}“) – nur wenn bis dahin keine Antwort kommt.</p>`}
+   <div class="field"><label>Text <span class="muted" style="font-weight:500">({Anrede} und {Absender} werden beim Versand ersetzt)</span></label><textarea class="textarea" id="rvBody" style="min-height:300px">${esc(st.body)}</textarea></div>
+   <details class="rv-prev"><summary>So sieht es beim Empfänger aus</summary><div class="ai-body" style="margin-top:8px">${RV.tab===0?`<b>${esc(st.preview.subject)}</b>\n\n`:''}${esc(st.preview.body)}</div></details></div></div></div>
+  <div class="modal-f" style="justify-content:space-between"><div class="row gap-s"><button class="btn ghost danger" data-act="rvAct" data-a="skip" title="Diese Firma nicht anschreiben">Überspringen</button><button class="btn ghost" data-act="rvAct" data-a="template" title="Statt der KI-Mail die Vorlage senden">Vorlage nehmen</button></div>
+  <div class="row gap-s">${RV.total>1?`<button class="btn" data-act="rvAll">Alle ${RV.total} freigeben</button>`:''}<button class="btn primary" data-act="rvAct" data-a="approve">${ic('check',2)}Freigeben${RV.i<RV.items.length-1?' und weiter':''}</button></div></div>`,true);
+}
+function rvKeep(){const it=RV.items[RV.i];if(!it)return;const st=it.steps[RV.tab];const b=$('#rvBody');if(b&&b.value!==st.body){st.body=b.value;st.dirty=true}const sj=$('#rvSubj');if(sj&&RV.tab===0&&sj.value!==st.subject){st.subject=sj.value;st.dirty=true}}
+async function rvAct(action){
+ rvKeep();const it=RV.items[RV.i];
+ const body={action};if(action==='approve'&&it.steps.some(x=>x.dirty))body.steps=it.steps.map(x=>({subject:x.subject,body:x.body}));
+ const j=await post(`/api/review/${it.id}`,body);if(!j.ok)return toast(esc(j.error),'bad');
+ RV.items.splice(RV.i,1);RV.total=Math.max(0,RV.total-1);RV.tab=0;if(RV.i>=RV.items.length)RV.i=0;
+ toast(action==='skip'?'Übersprungen':action==='template'?'Vorlage wird verwendet':'Freigegeben');
+ if(!RV.items.length&&RV.total>0)return reviewLoad();drawReview();
+}
+Object.assign(A,{
+ apNew:()=>{if(!AU.list)return;apModal(null)},
+ apGoto:d=>{AU.sel=d.id;go('auto')},
+ apOpen:d=>{AU.sel=d.id;drawAuto();autoPump();window.scrollTo(0,0)},
+ apBack:()=>{AU.sel=null;drawAuto()},
+ apEdit:()=>apModal(apCur()),
+ apSeg:d=>{document.querySelectorAll(`#${d.g} button`).forEach(b=>b.classList.toggle('on',b.dataset.v===d.v))},
+ apAcc:(d,el)=>{(el||document.querySelector(`#apAccs [data-id="${d.id}"]`)).classList.toggle('on')},
+ apToggle:()=>$('#apPers').classList.toggle('on'),
+ apSave:async d=>{
+  const f=apForm();if(!f.category&&!f.keyword)return $('#apRes').innerHTML=resBox('err','Bitte eine Branche wählen oder einen Suchbegriff eingeben.');
+  if(!f.locations.trim())return $('#apRes').innerHTML=resBox('err','Bitte mindestens einen Ort eingeben.');
+  if(!f.settings.accounts.length)return $('#apRes').innerHTML=resBox('err','Bitte mindestens ein Absender-Konto auswählen.');
+  const btns=document.querySelectorAll('.modal-f .btn');btns.forEach(b=>b.disabled=true);
+  const j=d.id?await patch(`/api/autopilots/${d.id}`,f):await post('/api/autopilots',{...f,start:!!d.start});
+  btns.forEach(b=>b.disabled=false);
+  if(!j.ok)return $('#apRes').innerHTML=resBox('err',esc(j.error));
+  closeModal();await autoLoad();AU.sel=j.autopilot.id;await refresh(false);drawAuto();autoPump();toast(d.id?'Gespeichert':d.start?'Automodus läuft':'Automodus gespeichert');
+ },
+ apStart:async()=>{const a=apCur();const j=await post(`/api/autopilots/${a.id}/start`,{});if(!j.ok)return toast(esc(j.error),'bad');const i=AU.list.findIndex(x=>x.id===a.id);AU.list[i]=j.autopilot;await refresh(false);drawAuto();autoPump();toast('Automodus läuft')},
+ apPause:async()=>{const a=apCur();const j=await post(`/api/autopilots/${a.id}/pause`,{});if(!j.ok)return toast(esc(j.error),'bad');const i=AU.list.findIndex(x=>x.id===a.id);AU.list[i]=j.autopilot;await refresh(false);drawAuto();toast('Automodus pausiert','warn')},
+ apDel:()=>{const a=apCur();confirmModal(`„${a.name}“ löschen?`,'Der Automodus hört auf zu suchen und zu senden. Die Kampagne wird pausiert, Leads und Versandverlauf bleiben erhalten.','Löschen',async()=>{await del(`/api/autopilots/${a.id}`);AU.sel=null;await autoLoad();await refresh(false);drawAuto();toast('Gelöscht')})},
+ reviewOpen:d=>reviewOpen(d.ap?{autopilot:d.ap}:{campaign:d.camp}),
+ rvTab:d=>{rvKeep();RV.tab=+d.i;drawReview()},
+ rvAct:d=>rvAct(d.a),
+ rvAll:()=>{rvKeep();confirmModal(`Alle ${RV.total} Mails freigeben?`,'Sie gehen dann ohne weitere Prüfung im nächsten Versandfenster raus. Deine Änderungen an der aktuellen Mail werden vorher gespeichert.','Alle freigeben',async()=>{const it=RV.items[RV.i];if(it&&it.steps.some(x=>x.dirty))await post(`/api/review/${it.id}`,{action:'approve',steps:it.steps.map(x=>({subject:x.subject,body:x.body}))});const j=await post('/api/review-all',RV.scope);toast(`${j.approved||0} freigegeben`);RV.items=[];RV.total=0;drawReview()})},
+ reviewDone:async()=>{closeModal();await refresh();if(S.view==='auto'){await autoLoad();drawAuto()}},
+ togglePers:async()=>{const c=camp();await patch(`/api/campaigns/${c.id}`,{personalize:!c.personalize,...(!c.personalize&&!c.reviewFirst?{reviewFirst:10}:{})});await refresh();toast(c.personalize?'Personalisierung aus':'KI schreibt jetzt jede Mail persönlich')},
+ setGreeting:async d=>{await patch('/api/settings',{greeting:d.g});await refresh(false);render(true);toast('Anrede gespeichert')}
 });

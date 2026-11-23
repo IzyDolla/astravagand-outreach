@@ -9,9 +9,9 @@ const DEFAULTS = {
   leads: { first: '', last: '', company: '', city: '', industry: '', phone: '', custom: {}, email_check: 'unchecked' },
   campaigns: { status: 'draft', steps: [], schedule: {}, lists: [], accounts: [], daily_new: 50, stop_company: true },
   enrollments: { step: 0, status: 'pending', history: [], errors: 0, refs: [], account_id: null, next_at: null }, sends: { test: false },
-  inbox: { read: false }, finder_jobs: { status: 'queued', attempts: 0, total: 0, with_email: 0, with_phone: 0, with_website: 0, crawled: 0, error: null, center: null, claimed_at: null }, finder_results: { crawl_status: 'pending', emails: [], socials: {}, email: null, contact_first: null, imported_at: null, imported_list: null, claimed_at: null, phone: '', website: '' }, templates: { subject: '', body: '' }, members: { role: 'member' }
+  inbox: { read: false }, autopilots: { lock_until: '1970-01-01T00:00:00.000Z', state: {}, log: [], settings: {}, locations: [] }, finder_jobs: { status: 'queued', attempts: 0, total: 0, with_email: 0, with_phone: 0, with_website: 0, crawled: 0, error: null, center: null, claimed_at: null }, finder_results: { crawl_status: 'pending', emails: [], socials: {}, email: null, contact_first: null, imported_at: null, imported_list: null, claimed_at: null, phone: '', website: '' }, templates: { subject: '', body: '' }, members: { role: 'member' }
 };
-function makeDb() { return { workspaces: [], members: [], profiles: [], accounts: [], lists: [], leads: [], campaigns: [], enrollments: [], sends: [], inbox: [], blocklist: [], templates: [], processed: [], audit: [], allowed_signups: [], locks: [], finder_jobs: [], finder_results: [], ai_usage: [] }; }
+function makeDb() { return { workspaces: [], members: [], profiles: [], accounts: [], lists: [], leads: [], campaigns: [], enrollments: [], sends: [], inbox: [], blocklist: [], templates: [], processed: [], audit: [], allowed_signups: [], locks: [], finder_jobs: [], finder_results: [], ai_usage: [], autopilots: [] }; }
 let clock = 0; const ts = () => new Date(Date.now() + (clock++)).toISOString();
 
 function parseSelect(sel) {
